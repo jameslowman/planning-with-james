@@ -7,8 +7,8 @@
     {
       "name": "planning-with-james",
       "source": {
-        "type": "github",
-        "repo": "jameslowman/planning-with-james"
+        "source": "url",
+        "url": "https://github.com/jameslowman/planning-with-james.git"
       },
       "description": "Deep codebase knowledge indexing and structured feature planning with context resilience",
       "version": "0.2.0"
