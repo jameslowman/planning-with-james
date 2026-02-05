@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "planning-with-james",
-      "source": "..",
+      "source": ".",
       "description": "Deep codebase knowledge indexing and structured feature planning with context resilience",
       "version": "0.2.0"
     }
