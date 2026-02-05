@@ -1,0 +1,24 @@
+{
+  "plan_name": "{{PLAN_NAME}}",
+  "plan_folder": "{{PLAN_FOLDER}}",
+  "created_at": "{{TIMESTAMP}}",
+  "last_updated": "{{TIMESTAMP}}",
+  "current_phase": 0,
+  "phase_status": {
+    "0_setup": "complete",
+    "1_context": "pending",
+    "2_scoping": "pending",
+    "3_discovery": "pending",
+    "4_approach": "pending",
+    "5_detailed_plan": "pending",
+    "6_tasks": "pending",
+    "7_finalize": "pending"
+  },
+  "problem_type": null,
+  "in_scope_modules": [],
+  "discovery_areas": [],
+  "checkpoints_passed": [],
+  "key_decisions": [],
+  "open_questions": [],
+  "risks": []
+}

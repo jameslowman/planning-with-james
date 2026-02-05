@@ -1,0 +1,11 @@
+{
+  "epic_id": "{{EPIC_ID}}",
+  "epic_name": "{{EPIC_NAME}}",
+  "epic_folder": "{{EPIC_FOLDER}}",
+  "created_at": "{{TIMESTAMP}}",
+  "status": "active",
+  "sub_plans": [],
+  "current_sub_plan": null,
+  "reviews_completed": [],
+  "last_updated": "{{TIMESTAMP}}"
+}

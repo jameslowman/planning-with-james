@@ -1,0 +1,16 @@
+{
+  "name": "planning-with-james",
+  "version": "0.2.0",
+  "description": "Deep codebase knowledge indexing and structured feature planning with context resilience",
+  "author": {
+    "name": "James"
+  },
+  "repository": "https://github.com/james/planning-with-james",
+  "license": "MIT",
+  "keywords": [
+    "planning",
+    "knowledge-graph",
+    "feature-development",
+    "context-resilience"
+  ]
+}
