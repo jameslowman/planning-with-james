@@ -7,6 +7,9 @@ allowed-tools: Bash, Glob, Grep, Read, Write, Task, Edit, AskUserQuestion
 
 # Update Knowledge Base
 
+**NON-NEGOTIABLE: ALL PATHS ARE RELATIVE TO THE REPO ROOT**
+All `.claude/planning-with-james/` paths in this skill are relative to the **current working directory** (the repo you're working in), NOT `~/.claude/`. The knowledge graph lives inside the project, not in your home directory. If you're unsure, run `pwd` to confirm you're in the repo root.
+
 **NON-NEGOTIABLE: PROGRESS TRACKING**
 After every module update, you MUST update `_update_progress.json` BEFORE starting the next module. This file is your lifeline through context loss. If you skip this step and autocompact hits, all work since the last progress write is lost.
 

@@ -7,6 +7,9 @@ allowed-tools: Bash, Glob, Grep, Read, Write, Task, Edit
 
 # Create Knowledge Base
 
+**NON-NEGOTIABLE: ALL PATHS ARE RELATIVE TO THE REPO ROOT**
+All `.claude/planning-with-james/` paths in this skill are relative to the **current working directory** (the repo you're working in), NOT `~/.claude/`. The knowledge graph lives inside the project, not in your home directory. If you're unsure, run `pwd` to confirm you're in the repo root.
+
 **NON-NEGOTIABLE: PROGRESS TRACKING**
 After each phase completes, you MUST update `_create_progress.json` BEFORE starting the next phase. This file enables resume after context loss. If autocompact hits mid-creation, re-invoking this skill will pick up where you left off.
 

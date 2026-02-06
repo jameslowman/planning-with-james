@@ -7,6 +7,9 @@ allowed-tools: Bash, Glob, Grep, Read, Write, Task, Edit, AskUserQuestion
 
 # Go Time: Execute the Plan
 
+**NON-NEGOTIABLE: ALL PATHS ARE RELATIVE TO THE REPO ROOT**
+All `.claude/planning-with-james/` paths in this skill are relative to the **current working directory** (the repo you're working in), NOT `~/.claude/`. The knowledge graph and plans live inside the project, not in your home directory. If you're unsure, run `pwd` to confirm you're in the repo root.
+
 This skill implements a plan's tasks one at a time with rigorous state tracking. Every action is recorded to files so work survives autocompact, session breaks, and context loss.
 
 **One rule above all: read the files, trust the files, update the files.**

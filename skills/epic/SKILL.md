@@ -7,6 +7,9 @@ allowed-tools: Bash, Glob, Grep, Read, Write, Task, Edit, AskUserQuestion
 
 # Epic: Plan of Plans
 
+**NON-NEGOTIABLE: ALL PATHS ARE RELATIVE TO THE REPO ROOT**
+All `.claude/planning-with-james/` paths in this skill are relative to the **current working directory** (the repo you're working in), NOT `~/.claude/`. The knowledge graph and plans live inside the project, not in your home directory. If you're unsure, run `pwd` to confirm you're in the repo root.
+
 An epic is a large initiative that breaks down into multiple sequential plans, each with its own discovery, planning, implementation, and validation. Epics solve the problem of carrying context across dozens or hundreds of Claude Code sessions over weeks or months.
 
 **The core mechanism is `learnings.md`** - a curated, growing document that accumulates architectural decisions, discoveries, and insights from every completed sub-plan. Any fresh session reads this file and immediately has the full history.

@@ -7,6 +7,9 @@ allowed-tools: Bash, Glob, Grep, Read, Write, Task, Edit, AskUserQuestion
 
 # Plan a Feature
 
+**NON-NEGOTIABLE: ALL PATHS ARE RELATIVE TO THE REPO ROOT**
+All `.claude/planning-with-james/` paths in this skill are relative to the **current working directory** (the repo you're working in), NOT `~/.claude/`. The knowledge graph and plans live inside the project, not in your home directory. If you're unsure, run `pwd` to confirm you're in the repo root.
+
 This skill guides you through a structured planning process with multiple phases and checkpoints. It produces a comprehensive plan that can survive context loss and guide implementation.
 
 ---
