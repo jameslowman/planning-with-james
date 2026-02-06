@@ -10,6 +10,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "prompt",
+            "command": "bash -c 'REG=\".claude/planning-with-james/plans/_registry.json\"; KNOWLEDGE=\".claude/planning-with-james/knowledge/_overview.md\"; MSG=\"\"; if [ -f \"$REG\" ]; then ACTIVE=$(jq -r \".active_plan // empty\" \"$REG\" 2>/dev/null); if [ -n \"$ACTIVE\" ]; then PDIR=$(jq -r \".plans[\\\"$ACTIVE\\\"].path // empty\" \"$REG\" 2>/dev/null); if [ -n \"$PDIR\" ] && [ -f \"$PDIR/context_scratch_pad.md\" ]; then MSG=\"[POST-COMPACT RECOVERY] You are using the planning-with-james plugin. Active plan: $ACTIVE. Read $PDIR/context_scratch_pad.md to restore context. All paths are relative to repo root, not ~/.claude/.\"; fi; fi; fi; if [ -z \"$MSG\" ] && [ -f \"$KNOWLEDGE\" ]; then MSG=\"[POST-COMPACT REMINDER] You are using the planning-with-james plugin. Knowledge graph at .claude/planning-with-james/knowledge/. All paths are relative to repo root, not ~/.claude/.\"; fi; echo \"$MSG\"'",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PreToolUse": [
