@@ -117,17 +117,14 @@ Creates a "plan of plans" with a `learnings.md` file that accumulates wisdom acr
 
 ## Installation
 
-From any project where you want to use it:
+In Claude Code, run:
 
 ```
-/plugin install /path/to/planning-with-james
+/plugin marketplace add jameslowman/planning-with-james
+/plugin install planning-with-james@james-plugins
 ```
 
-Or globally:
-
-```
-/plugin install --global /path/to/planning-with-james
-```
+That's it. The plugin is now available in all your projects.
 
 ## Philosophy
 
