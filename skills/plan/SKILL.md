@@ -10,6 +10,12 @@ allowed-tools: Bash, Glob, Grep, Read, Write, Task, Edit, AskUserQuestion
 **NON-NEGOTIABLE: ALL PATHS ARE RELATIVE TO THE REPO ROOT**
 All `.claude/planning-with-james/` paths in this skill are relative to the **current working directory** (the repo you're working in), NOT `~/.claude/`. The knowledge graph and plans live inside the project, not in your home directory. If you're unsure, run `pwd` to confirm you're in the repo root.
 
+**NON-NEGOTIABLE: ASK FIRST, WORK LATER**
+Your FIRST action must be to ask the user what they want to do. Do NOT read files, check registries, update knowledge, or do any work before asking. The user invoked /plan because they want to start planning with you.
+
+**NON-NEGOTIABLE: THIS SKILL ONLY READS THE KNOWLEDGE GRAPH, NEVER UPDATES IT**
+If the knowledge graph is missing or stale, inform the user and suggest they run `/planning-with-james:create-knowledge` or `/planning-with-james:update-knowledge`. Do NOT run those skills yourself.
+
 This skill guides you through a structured planning process with multiple phases and checkpoints. It produces a comprehensive plan that can survive context loss and guide implementation.
 
 ---
@@ -90,9 +96,37 @@ Every checkpoint is an opportunity to draw information out of the user -- contex
 
 # PHASE 0: SETUP
 
-## Step 1: Verify Knowledge Base
+## Step 1: Ask the User What They Want
 
-First, verify the knowledge base exists:
+**START HERE. Do not read files or check registries first.**
+
+Use `AskUserQuestion` to ask:
+
+> "What would you like to plan?
+>
+> Give me a brief description of the feature, bug, refactor, or system you want to work on. You can also paste Linear/GitHub links, error messages, or any context you have."
+
+**Wait for the user's response before proceeding.**
+
+## Step 2: Check for Existing Plans
+
+AFTER the user responds, check `.claude/planning-with-james/plans/_registry.json` for any plans with status `"planning"` (in-progress plans).
+
+**If in-progress plans exist**, ask:
+
+> "I found an existing plan in progress: {name} (Phase {N})
+>
+> Would you like to:
+> 1. Continue that plan
+> 2. Start a new plan for what you just described"
+
+**If user wants to continue**: Read `context_scratch_pad.md` from that plan folder and resume from the current phase.
+
+**If user wants a new plan** (or no existing plans): Continue to Step 3.
+
+## Step 3: Verify Knowledge Base
+
+Now verify the knowledge base exists:
 
 ```
 .claude/planning-with-james/knowledge/
@@ -101,9 +135,9 @@ First, verify the knowledge base exists:
 If missing, inform user:
 > "No knowledge base found. Run `/planning-with-james:create-knowledge` first to index the codebase. Planning without knowledge is like navigating without a map."
 
-Stop execution if knowledge base doesn't exist.
+**Stop execution and wait for user to create knowledge base.** Do NOT run create-knowledge yourself.
 
-## Step 1b: Check for Epic Context
+## Step 4: Check for Epic Context (Optional)
 
 Check `.claude/planning-with-james/plans/_registry.json` for plans with an `epic` field that have status `"planned"` (created by the epic skill, waiting to be detail-planned).
 
@@ -123,11 +157,11 @@ This context informs EVERY phase of planning. Include it in:
 - Phase 4: Approach is constrained by architecture decisions in learnings.md
 - Phase 5: Detailed plan follows patterns established in learnings.md
 
-**If the plan folder already exists** (created by the epic skill): skip Step 2 (location question) and use the existing folder.
+**If the plan folder already exists** (created by the epic skill): skip Step 5 (location question) and use the existing folder.
 
 **If not part of an epic:** continue normally.
 
-## Step 2: Ask for Plan Location
+## Step 5: Ask for Plan Location
 
 Use `AskUserQuestion` to ask:
 
@@ -140,7 +174,7 @@ Use `AskUserQuestion` to ask:
 >
 > What's the feature/bug name? (This becomes the folder name)"
 
-## Step 3: Create Folder Structure
+## Step 6: Create Folder Structure
 
 Create the plan folder with all template files:
 
@@ -158,7 +192,7 @@ Create the plan folder with all template files:
 └── tasks.md                   # Phase 6 output
 ```
 
-## Step 4: Initialize Plan State
+## Step 7: Initialize Plan State
 
 Create `_plan_state.json`:
 
@@ -205,7 +239,7 @@ If `_registry.json` already exists, merge the new plan into the existing `plans`
 
 **Plan lifecycle states**: `planning` → `planned` → `active` ⇄ `paused` → `completed`. Only `/go-time` changes status beyond `planned`. See `/planning-with-james:go-time` for details.
 
-## Step 5: Initialize Cold Start Doc
+## Step 8: Initialize Cold Start Doc
 
 Create initial `context_scratch_pad.md`:
 
@@ -243,7 +277,7 @@ This document maintains continuity across sessions. If you're resuming after a c
 - {timestamp}: Plan initialized
 ```
 
-## Step 6: Load Planning Context
+## Step 9: Load Planning Context
 
 Read internal planning guidance (these inform your behavior but aren't shown to user):
 - How to ask good questions
@@ -259,26 +293,28 @@ Now proceed to Phase 1.
 
 **Goal**: Understand what we're solving from the user's perspective.
 
-## Step 1: Initial Questions
+## Step 1: Gather Additional Context
 
-Use `AskUserQuestion` with these questions (adapt based on what user already provided):
+The user already gave you an initial description in Phase 0 Step 1. Now dig deeper with follow-up questions. Use `AskUserQuestion` to ask questions you don't already have answers to:
 
-**Question 1: Problem Type**
-> "What type of work is this?
-> - Bug fix (something's broken)
-> - Feature (new capability)
-> - Refactor (improve existing code)
-> - New system (build from scratch)"
+**If problem type is unclear:**
+> "Is this:
+> - A bug fix (something's broken)
+> - A feature (new capability)
+> - A refactor (improve existing code)
+> - A new system (build from scratch)"
 
-**Question 2: Description**
-> "Describe the problem or goal. Include:
+**If you need more details:**
+> "Can you tell me more about:
 > - What's happening (or should happen)
 > - Any error messages, screenshots, or logs
 > - Links to tickets (Linear, GitHub, etc.)
 > - Your theories about the cause or approach"
 
-**Question 3: Success Criteria**
+**If success criteria is unclear:**
 > "How will we know this is solved? What does success look like?"
+
+**Only ask questions you need answers to.** If the user's initial description was thorough, you may be able to skip some of these.
 
 ## Step 2: Process Additional Context
 
@@ -1162,25 +1198,6 @@ Present completion to user:
 > 3. Use context_scratch_pad.md if you need to resume after a break
 >
 > Ready to begin implementation when you are!"
-
----
-
-## RECOVERY: Resuming a Plan
-
-If this skill is invoked when a plan is already in progress:
-
-1. Check `.claude/planning-with-james/plans/_registry.json` for plans with status `"planning"`
-2. Read `_plan_state.json` from that plan folder
-3. Read `context_scratch_pad.md` for current state
-4. Resume from the current phase
-
-Ask user:
-> "Found existing plan in progress: {name}
-> Current phase: {phase}
->
-> Would you like to:
-> 1. Continue this plan
-> 2. Start a new plan (the existing one will remain in the registry)"
 
 ---
 
