@@ -15,8 +15,8 @@
         "matcher": "compact",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "bash -c 'REG=\".claude/planning-with-james/plans/_registry.json\"; KNOWLEDGE=\".claude/planning-with-james/knowledge/_overview.md\"; MSG=\"\"; if [ -f \"$REG\" ]; then ACTIVE=$(jq -r \".active_plan // empty\" \"$REG\" 2>/dev/null); if [ -n \"$ACTIVE\" ]; then PDIR=$(jq -r \".plans[\\\"$ACTIVE\\\"].path // empty\" \"$REG\" 2>/dev/null); if [ -n \"$PDIR\" ] && [ -f \"$PDIR/context_scratch_pad.md\" ]; then MSG=\"[POST-COMPACT RECOVERY] You are using the planning-with-james plugin. Active plan: $ACTIVE. Read $PDIR/context_scratch_pad.md to restore context. All paths are relative to repo root, not ~/.claude/.\"; fi; fi; fi; if [ -z \"$MSG\" ] && [ -f \"$KNOWLEDGE\" ]; then MSG=\"[POST-COMPACT REMINDER] You are using the planning-with-james plugin. Knowledge graph at .claude/planning-with-james/knowledge/. All paths are relative to repo root, not ~/.claude/.\"; fi; echo \"$MSG\"'",
+            "type": "command",
+            "command": "bash -c 'REG=\".claude/planning-with-james/plans/_registry.json\"; KNOWLEDGE=\".claude/planning-with-james/knowledge/_overview.md\"; MSG=\"\"; if [ -f \"$REG\" ]; then ACTIVE=$(jq -r \".active_plan // empty\" \"$REG\" 2>/dev/null); if [ -n \"$ACTIVE\" ]; then PDIR=$(jq -r \".plans[\\\"$ACTIVE\\\"].path // empty\" \"$REG\" 2>/dev/null); if [ -n \"$PDIR\" ] && [ -f \"$PDIR/context_scratch_pad.md\" ]; then MSG=\"[POST-COMPACT RECOVERY] You are using the planning-with-james plugin. Active plan: $ACTIVE. Read $PDIR/context_scratch_pad.md to restore context. All paths are relative to repo root, not ~/.claude/.\"; fi; fi; fi; if [ -z \"$MSG\" ] && [ -f \"$KNOWLEDGE\" ]; then MSG=\"[POST-COMPACT REMINDER] You are using the planning-with-james plugin. Knowledge graph at .claude/planning-with-james/knowledge/. All paths are relative to repo root, not ~/.claude/.\"; fi; echo \"$MSG\"'",
             "timeout": 5
           }
         ]
@@ -27,8 +27,8 @@
         "matcher": "Edit|Write",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "bash -c 'REG=\".claude/planning-with-james/plans/_registry.json\"; [ -f \"$REG\" ] || exit 0; ACTIVE=$(jq -r \".active_plan // empty\" \"$REG\" 2>/dev/null); [ -n \"$ACTIVE\" ] || exit 0; PDIR=$(jq -r \".plans[\\\"$ACTIVE\\\"].path // empty\" \"$REG\" 2>/dev/null); [ -n \"$PDIR\" ] && [ -f \"$PDIR/_plan_state.json\" ] || exit 0; TASK=$(jq -r \".current_task // \\\"starting\\\"\" \"$PDIR/_plan_state.json\" 2>/dev/null); DESC=$(jq -r \".current_task_description // empty\" \"$PDIR/_plan_state.json\" 2>/dev/null); if [ -n \"$DESC\" ]; then echo \"[ACTIVE PLAN: $ACTIVE | Task $TASK: $DESC]\"; else echo \"[ACTIVE PLAN: $ACTIVE | Task: $TASK]\"; fi'",
+            "type": "command",
+            "command": "bash -c 'REG=\".claude/planning-with-james/plans/_registry.json\"; [ -f \"$REG\" ] || exit 0; ACTIVE=$(jq -r \".active_plan // empty\" \"$REG\" 2>/dev/null); [ -n \"$ACTIVE\" ] || exit 0; PDIR=$(jq -r \".plans[\\\"$ACTIVE\\\"].path // empty\" \"$REG\" 2>/dev/null); [ -n \"$PDIR\" ] && [ -f \"$PDIR/_plan_state.json\" ] || exit 0; TASK=$(jq -r \".current_task // \\\"starting\\\"\" \"$PDIR/_plan_state.json\" 2>/dev/null); DESC=$(jq -r \".current_task_description // empty\" \"$PDIR/_plan_state.json\" 2>/dev/null); if [ -n \"$DESC\" ]; then echo \"[ACTIVE PLAN: $ACTIVE | Task $TASK: $DESC]\"; else echo \"[ACTIVE PLAN: $ACTIVE | Task: $TASK]\"; fi'",
             "timeout": 5
           }
         ]
