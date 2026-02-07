@@ -29,5 +29,6 @@ Builds a knowledge graph of your codebase so Claude starts from documented under
 ### Install
 
 ```
-/plugin install https://github.com/jameslowman/planning-with-james.git
+/plugin marketplace add jameslowman/planning-with-james
+/plugin install planning-with-james@james-plugins
 ```
