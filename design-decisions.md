@@ -27,12 +27,13 @@ The solution: build a comprehensive knowledge base *before* planning, so plannin
 
 ## Architecture Overview
 
-### Four Commands
+### Six Commands
 
 | Command | Purpose |
 |---------|---------|
 | `/planning-with-james:create-knowledge` | Full codebase indexing from scratch |
 | `/planning-with-james:update-knowledge [context\|verify\|repair]` | Incremental updates, integrity checks, repairs |
+| `/planning-with-james:explore` | Query the knowledge graph for understanding, impact, flows |
 | `/planning-with-james:plan` | Structured 7-phase planning with adaptive checkpoints |
 | `/planning-with-james:go-time [plan-id\|pause\|status]` | Execute plan tasks with full continuity |
 | `/planning-with-james:epic [review\|status\|epic-id]` | Create and manage multi-plan epics |
@@ -495,6 +496,49 @@ The verify/repair modes provide ongoing knowledge maintenance:
 - Broken graph: rebuilt from _refs.json files
 
 This is designed to be run periodically as maintenance, or after a known failed update.
+
+---
+
+## Explore System
+
+### `/planning-with-james:explore`
+
+A lightweight, stateless skill for querying the knowledge graph during everyday work -- understanding how things work, impact analysis, PR review context.
+
+### Why This Exists
+
+The knowledge graph was originally only consumed during `/plan`. But the graph contains deep analysis of every module: boundaries, interfaces, patterns, dependencies, gotchas. That information is valuable for everyday work -- understanding unfamiliar code, assessing the blast radius of a change, reviewing PRs, tracing request flows. Without a dedicated skill, users had to either read the knowledge files manually or let Claude rediscover everything from source code.
+
+### Stateless Design
+
+Unlike `/plan` and `/go-time`, the explore skill has:
+- No phases or phase progression
+- No state files (`_plan_state.json`, etc.)
+- No registry entries
+- No hooks
+
+It reads the knowledge graph, answers the question, and optionally saves findings. This keeps it fast and low-friction -- something you invoke mid-conversation without ceremony.
+
+### Query Type Classification
+
+The skill classifies queries into four types (Understanding, Impact, Flow, Diff Impact) to determine what knowledge to load and how to structure the answer. This prevents loading the entire graph for a simple "how does X work" question, and ensures impact/flow queries traverse the graph edges properly.
+
+Default is Understanding, which covers the most common case: "tell me about this module."
+
+### Saved Explorations
+
+Findings can optionally be saved to `.claude/planning-with-james/explorations/`. These are timestamped markdown files with frontmatter (query, type, modules involved). They serve as a lightweight record of what was explored and when, useful for:
+- Reviewing what you looked at before starting a plan
+- Sharing exploration context with teammates
+- Picking up where you left off in a new session
+
+The directory is created lazily on first save.
+
+### Future Consideration: Knowledge Discovery Hook
+
+A natural extension is a `PreToolUse` hook on `Glob` and `Grep` that passively nudges Claude toward the knowledge graph whenever it's about to search source code. The hook would check if a knowledge graph exists and output a brief reminder like: "A knowledge graph exists for this repo. Consider checking `.claude/planning-with-james/knowledge/` first."
+
+This was deferred from the initial implementation to keep scope focused. The hook would need careful gating (only fire when knowledge exists, only fire once per session or per-query, don't fire during knowledge creation/updates) to avoid being annoying.
 
 ---
 

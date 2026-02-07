@@ -1,5 +1,21 @@
 # Release Notes
 
+## v1.1.0
+
+### New: `/explore` skill
+
+Query the knowledge graph for everyday work without starting a full planning session. Ask how something works, check the blast radius of a change, trace a flow through the system, or review what your current diff affects.
+
+Four query types:
+- **Understanding**: "how does auth work" -- synthesizes module purpose, key files, interfaces, patterns, gotchas
+- **Impact**: "what breaks if I change the rate module" -- traverses the dependency graph 2 hops out, builds an impact map
+- **Flow**: "trace a request from API to database" -- walks the graph path, describes what enters/happens/exits at each step
+- **Diff Impact**: "what's affected by my current changes" -- maps uncommitted changes to modules, classifies interface vs internal changes, identifies downstream risk
+
+Stateless by design: no phases, no state files, no registry entries. Optionally saves findings to `.claude/planning-with-james/explorations/`.
+
+---
+
 ## v1.0.0
 
 A Claude Code plugin for deep codebase understanding and structured feature development.
