@@ -16,7 +16,9 @@ This skill implements a plan's tasks one at a time with rigorous state tracking.
 
 **NON-NEGOTIABLE #1 (RECORD)**: After completing each task, you MUST update `context_scratch_pad.md`, check off the task in `tasks.md`, and update `_plan_state.json` BEFORE starting the next task. This is the RECORD step (Step 4). A task is not done until the record is written. Skipping this step destroys the ability to recover from context loss.
 
-**NON-NEGOTIABLE #2 (KNOWLEDGE-FIRST)**: When you need to understand unfamiliar code during implementation - whether for a task, a deviation, debugging, or research - read the knowledge graph BEFORE exploring source files. The knowledge graph at `.claude/planning-with-james/knowledge/` already contains module boundaries, key files, interfaces, patterns, and gotchas. Starting from source code wastes time rediscovering documented information. Read `_overview.md`, then `_graph.json`, then relevant module `_index.md` files. THEN fill gaps from source. When spawning subagents, include the relevant knowledge file paths in their prompt.
+**NON-NEGOTIABLE #2 (SESSION-SCOPED)**: Your session ID is `$CLAUDE_SESSION_ID`. All plan activations in the registry are scoped to this session. When reading `_registry.json`, look up `sessions["$CLAUDE_SESSION_ID"]` for YOUR active plan. Do not touch other sessions' entries. Multiple terminals can work on different plans simultaneously.
+
+**NON-NEGOTIABLE #3 (KNOWLEDGE-FIRST)**: When you need to understand unfamiliar code during implementation - whether for a task, a deviation, debugging, or research - read the knowledge graph BEFORE exploring source files. The knowledge graph at `.claude/planning-with-james/knowledge/` already contains module boundaries, key files, interfaces, patterns, and gotchas. Starting from source code wastes time rediscovering documented information. Read `_overview.md`, then `_graph.json`, then relevant module `_index.md` files. THEN fill gaps from source. When spawning subagents, include the relevant knowledge file paths in their prompt.
 
 ---
 
@@ -51,7 +53,7 @@ planning → planned → active ⇄ paused → completed
 | `paused` | Implementation paused, safe to do other work | `/go-time pause` or user request |
 | `completed` | All tasks done | `/go-time` when final checklist passes |
 
-**Only ONE plan can be `active` at a time.** This is enforced by the registry. When no plan is active, the PreToolUse hook is silent and nothing interferes with other work.
+**A plan can only be actively worked on by one session at a time.** This is enforced by plan-level locks (`locked_by_session`) in the registry. Multiple terminals can each have a different plan active simultaneously. When your session has no active plan, the PreToolUse hook is silent for your terminal.
 
 ---
 
@@ -61,18 +63,38 @@ All plans are tracked in `.claude/planning-with-james/plans/_registry.json`:
 
 ```json
 {
-  "active_plan": null,
+  "sessions": {
+    "abc-123-session-id": {
+      "active_plan": "SB-1112",
+      "bound_at": "2026-02-09T10:00:00Z"
+    }
+  },
   "plans": {
     "SB-1112": {
       "name": "SB-1112 Return UNLOCODEs in RFQ Rate Search",
       "path": "/full/path/to/plan/folder",
       "created_at": "2026-02-04T12:00:00Z",
-      "status": "paused",
-      "current_task": "2.1"
+      "status": "active",
+      "current_task": "2.1",
+      "locked_by_session": "abc-123-session-id",
+      "locked_at": "2026-02-09T10:00:00Z"
     }
   }
 }
 ```
+
+Each session has its own `active_plan` binding via the `sessions` map, keyed by `$CLAUDE_SESSION_ID`. Plan-level locks (`locked_by_session`) prevent two sessions from working on the same plan simultaneously.
+
+---
+
+## Session Cleanup
+
+Before routing by argument, prune stale session bindings from `_registry.json`. For each entry in `sessions`, if `bound_at` is more than 24 hours old:
+1. Remove the session entry from `sessions`
+2. If the stale session had a plan locked via `locked_by_session` matching that session ID, clear the lock fields and set the plan's status to `"paused"`
+3. Write the cleaned registry back
+
+This runs automatically on every `/go-time` invocation. No separate maintenance needed.
 
 ---
 
@@ -81,11 +103,12 @@ All plans are tracked in `.claude/planning-with-james/plans/_registry.json`:
 ## If `$ARGUMENTS` is "pause"
 
 1. Read `.claude/planning-with-james/plans/_registry.json`
-2. Find the active plan (where `active_plan` is not null)
-3. If no active plan: tell user "No plan is currently active. Nothing to pause."
-4. If active plan found:
-   a. Read the plan's `context_scratch_pad.md`
-   b. Update scratch pad with pause state:
+2. Look up `sessions["$CLAUDE_SESSION_ID"]` for this session's active plan
+3. If no binding for this session: tell user "No plan is active in this session. Nothing to pause."
+4. If binding found:
+   a. Get the active plan ID from the session binding
+   b. Read the plan's `context_scratch_pad.md`
+   c. Update scratch pad with pause state:
       ```
       ## Current State
       - **Status**: PAUSED
@@ -93,9 +116,12 @@ All plans are tracked in `.claude/planning-with-james/plans/_registry.json`:
       - **Next task**: {next unchecked task}
       - **Paused at**: {timestamp}
       ```
-   c. Update `_plan_state.json`: set `implementation_status` to `"paused"`
-   d. Update `_registry.json`: set plan status to `"paused"`, set `active_plan` to `null`
-   e. Tell user: "Plan {name} paused at Task {X.Y}. Resume anytime with `/planning-with-james:go-time {plan-id}`"
+   d. Update `_plan_state.json`: set `implementation_status` to `"paused"`
+   e. Update `_registry.json`:
+      - Remove this session's entry from `sessions`
+      - Clear `locked_by_session` and `locked_at` on the plan
+      - Set plan status to `"paused"`
+   f. Tell user: "Plan {name} paused at Task {X.Y}. Resume anytime with `/planning-with-james:go-time {plan-id}`"
 5. STOP.
 
 ## If `$ARGUMENTS` is "status"
@@ -104,15 +130,17 @@ All plans are tracked in `.claude/planning-with-james/plans/_registry.json`:
 2. Display all plans in a table:
 
 ```
-| Plan | Status | Current Task | Created |
-|------|--------|--------------|---------|
-| SB-1112 | paused | Task 2.1 | 2026-02-04 |
-| auth-refactor | planned | - | 2026-02-03 |
-| SB-1300 | completed | - | 2026-01-28 |
+| Plan | Status | Current Task | Locked By | Created |
+|------|--------|--------------|-----------|---------|
+| SB-1112 | active | Task 2.1 | this session | 2026-02-04 |
+| SB-1288 | active | Task 1.3 | other session | 2026-02-05 |
+| auth-refactor | planned | - | - | 2026-02-03 |
+| SB-1300 | completed | - | - | 2026-01-28 |
 ```
 
-3. If there's an active plan, note it.
-4. STOP.
+3. Highlight which plan (if any) is bound to this session (`$CLAUDE_SESSION_ID`)
+4. Show active session count: "{N} sessions currently active"
+5. STOP.
 
 ## If `$ARGUMENTS` is a plan-id
 
@@ -121,12 +149,18 @@ All plans are tracked in `.claude/planning-with-james/plans/_registry.json`:
 3. Check plan status:
    - If `planning`: "Plan '{plan-id}' is still in planning phases. Complete planning first with `/planning-with-james:plan`."
    - If `completed`: "Plan '{plan-id}' is already completed."
-   - If `active`: It's already active. Proceed to ORIENT.
-   - If `planned` or `paused`: Activate it (next step).
-4. Check if another plan is already active:
-   - If yes: "Plan '{other}' is currently active. Pause it first with `/planning-with-james:go-time pause`, then activate this one."
-   - If no: Set this plan to `active` and `active_plan` to its id in the registry.
-5. **If this is the first activation** (status was `planned`, not `paused`):
+   - If `active` and `locked_by_session` matches `$CLAUDE_SESSION_ID`: Already active in this session. Proceed to ORIENT.
+   - If `active` and `locked_by_session` does NOT match `$CLAUDE_SESSION_ID`: "Plan '{plan-id}' is currently being worked on by another terminal. Wait for it to be paused or completed."
+   - If `planned` or `paused`: Proceed to activate it (next step).
+4. **Unbind current session** (if this session already has a different plan):
+   - Check if `sessions["$CLAUDE_SESSION_ID"]` exists and points to a DIFFERENT plan
+   - If yes: pause that plan first (clear its lock, set its status to `"paused"`, remove the session entry)
+   - This allows seamless switching: `/go-time SB-1288` automatically pauses SB-1112 if it was active in this session
+5. **Activate the target plan**:
+   - Add session binding: `sessions["$CLAUDE_SESSION_ID"] = {"active_plan": "{plan-id}", "bound_at": "{timestamp}"}`
+   - Set plan's `locked_by_session` to `$CLAUDE_SESSION_ID` and `locked_at` to current timestamp
+   - Set plan status to `"active"` in the registry
+6. **If this is the first activation** (status was `planned`, not `paused`):
    - Create a branch based on the plan's `problem_type` from `_plan_state.json`:
      - `bug` → `fix/{plan-id}`
      - `feature` → `feat/{plan-id}`
@@ -135,20 +169,21 @@ All plans are tracked in `.claude/planning-with-james/plans/_registry.json`:
      - Other/unknown → ask user for branch name
    - If the user is already on a non-main branch, ask before creating a new one
    - Record the branch name in `_plan_state.json` as `branch`
-6. **If resuming** (status was `paused`):
+7. **If resuming** (status was `paused`):
    - Check if we're on the correct branch (from `_plan_state.json`)
    - If not, ask: "Plan {name} was on branch `{branch}`. Switch to it?"
-7. Proceed to ORIENT.
+8. Proceed to ORIENT.
 
 ## If `$ARGUMENTS` is empty
 
 1. Read `.claude/planning-with-james/plans/_registry.json`
-2. If there's an active plan: resume it. Proceed to ORIENT.
-3. If no active plan but there are `planned` or `paused` plans:
+2. Check if this session already has a binding: look up `sessions["$CLAUDE_SESSION_ID"]`
+   - If bound: resume that plan. Proceed to ORIENT.
+3. If no binding for this session, check for `planned` or `paused` plans:
    - If only one eligible plan: ask "Resume {plan-name}?" with AskUserQuestion
    - If multiple: show them and ask which to activate
 4. If no plans exist: "No plans found. Create one with `/planning-with-james:plan`."
-5. Once plan is selected, set it to `active` in registry. Proceed to ORIENT.
+5. Once plan is selected, activate it (same logic as plan-id branch steps 4-6). Proceed to ORIENT.
 
 ---
 
@@ -294,7 +329,7 @@ Read the current file, then update:
 
 ### Record 4 of 4: Update `_registry.json`
 
-Update the plan's `current_task` field.
+Update the plan's `current_task` field. Verify that `sessions["$CLAUDE_SESSION_ID"]` still points to this plan and `locked_by_session` still matches this session. If the binding was lost (e.g., another process modified the registry), re-establish it.
 
 **Only after all four record steps are complete may you proceed to EVALUATE.**
 
@@ -430,13 +465,14 @@ The Orient phase will re-read all state files and continue from Task X.Z.
    - `current_task`: the NEXT task (not the one just completed)
 
 4. Update `_registry.json`:
-   - Plan status: `"paused"`
-   - `active_plan`: `null`
+   - Remove `sessions["$CLAUDE_SESSION_ID"]` entry
+   - Clear `locked_by_session` and `locked_at` on the plan
+   - Set plan status to `"paused"`
 
 5. Tell user:
 > "Plan {name} paused at Task {X.Y}. Resume anytime with `/planning-with-james:go-time {plan-id}`."
 >
-> No hooks will fire while the plan is paused. You're free to work on other things.
+> No hooks will fire for this plan while it's paused. You're free to work on other things.
 
 ---
 
@@ -474,8 +510,9 @@ Tasks skipped: {M} (with reasons noted in scratch pad)
    - `implementation_status`: `"completed"`
 
 5. Update `_registry.json`:
-   - Plan status: `"completed"`
-   - `active_plan`: `null`
+   - Remove `sessions["$CLAUDE_SESSION_ID"]` entry
+   - Clear `locked_by_session` and `locked_at` on the plan
+   - Set plan status to `"completed"`
 
 6. Ask user if they want to create a commit or PR.
 
@@ -530,7 +567,7 @@ If you suspect context was compacted (you don't remember recent work, or things 
 
 **Do not guess. Do not assume. Read the files.**
 
-1. Read `_registry.json` → find the active plan and its path
+1. Read `_registry.json` → find this session's active plan via `sessions["$CLAUDE_SESSION_ID"]`. If no session entry exists, look for any plan with `locked_by_session` matching `$CLAUDE_SESSION_ID` as a fallback.
 2. Read `context_scratch_pad.md` → this is your lifeline. It tells you everything.
 3. Read `tasks.md` → see what's checked off vs pending
 4. Read `_plan_state.json` → current task, completed list

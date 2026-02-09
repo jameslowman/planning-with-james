@@ -33,7 +33,7 @@ The solution: build a comprehensive knowledge base *before* planning, so plannin
 |---------|---------|
 | `/planning-with-james:create-knowledge` | Full codebase indexing from scratch |
 | `/planning-with-james:update-knowledge [context\|verify\|repair]` | Incremental updates, integrity checks, repairs |
-| `/planning-with-james:explore` | Query the knowledge graph for understanding, impact, flows |
+| `/planning-with-james:query` | Query the knowledge graph for understanding, impact, flows |
 | `/planning-with-james:plan` | Structured 7-phase planning with adaptive checkpoints |
 | `/planning-with-james:go-time [plan-id\|pause\|status]` | Execute plan tasks with full continuity |
 | `/planning-with-james:epic [review\|status\|epic-id]` | Create and manage multi-plan epics |
@@ -499,11 +499,13 @@ This is designed to be run periodically as maintenance, or after a known failed 
 
 ---
 
-## Explore System
+## Query System (formerly Explore)
 
-### `/planning-with-james:explore`
+### `/planning-with-james:query`
 
 A lightweight, stateless skill for querying the knowledge graph during everyday work -- understanding how things work, impact analysis, PR review context.
+
+Originally named `/explore`, renamed to `/query` to avoid collision with Claude Code's built-in Explore agent type, which caused the skill to be uninvocable.
 
 ### Why This Exists
 
@@ -511,7 +513,7 @@ The knowledge graph was originally only consumed during `/plan`. But the graph c
 
 ### Stateless Design
 
-Unlike `/plan` and `/go-time`, the explore skill has:
+Unlike `/plan` and `/go-time`, the query skill has:
 - No phases or phase progression
 - No state files (`_plan_state.json`, etc.)
 - No registry entries
@@ -539,6 +541,60 @@ The directory is created lazily on first save.
 A natural extension is a `PreToolUse` hook on `Glob` and `Grep` that passively nudges Claude toward the knowledge graph whenever it's about to search source code. The hook would check if a knowledge graph exists and output a brief reminder like: "A knowledge graph exists for this repo. Consider checking `.claude/planning-with-james/knowledge/` first."
 
 This was deferred from the initial implementation to keep scope focused. The hook would need careful gating (only fire when knowledge exists, only fire once per session or per-query, don't fire during knowledge creation/updates) to avoid being annoying.
+
+---
+
+## Concurrent Sessions
+
+### The Problem
+
+The original registry had a single `active_plan` pointer at the root level. Two terminals running `/go-time` simultaneously would fight over this pointer -- one would activate its plan, the other would overwrite it, and the PreToolUse hook would surface the wrong plan's context.
+
+### Solution: Per-Session Plan Binding
+
+Replace the singleton `active_plan` with a `sessions` map keyed by `$CLAUDE_SESSION_ID` (available in SKILL.md via substitution, and in hooks via stdin JSON's `session_id` field).
+
+**Registry format change:**
+```json
+{
+  "sessions": {
+    "session-abc": { "active_plan": "SB-1133", "bound_at": "..." },
+    "session-def": { "active_plan": "SB-1288", "bound_at": "..." }
+  },
+  "plans": {
+    "SB-1133": { "locked_by_session": "session-abc", ... },
+    "SB-1288": { "locked_by_session": "session-def", ... }
+  }
+}
+```
+
+Each terminal gets its own slot. No contention.
+
+### Plan-Level Locking
+
+The `locked_by_session` field on each plan prevents two terminals from working on the same plan simultaneously, which would cause file conflicts in `_plan_state.json`, `tasks.md`, and `context_scratch_pad.md`. If a plan is locked by another session, go-time refuses to activate it.
+
+### Session Cleanup
+
+Sessions are ephemeral. Stale entries accumulate when terminals close without pausing. The go-time skill prunes entries with `bound_at` older than 24 hours on every invocation, clearing their locks and setting affected plans to `"paused"`.
+
+### Hook Session Awareness
+
+Hooks receive `session_id` in their stdin JSON (not as an environment variable). The compact recovery hook and PreToolUse reminder hook both parse this from stdin with `jq` and look up the session-specific plan binding. If `session_id` is unavailable (older Claude Code versions), hooks exit silently -- safe degradation.
+
+### What Changed
+
+| Component | Before | After |
+|-----------|--------|-------|
+| Registry root | `active_plan: "id"` | `sessions: { sid: { active_plan: "id" } }` |
+| Plan entry | (no lock field) | `locked_by_session`, `locked_at` |
+| Hooks | Read `active_plan` directly | Parse `session_id` from stdin, look up `sessions[sid]` |
+| Constraint | One active plan globally | One active plan per session, one session per plan |
+| Pause/Complete | Set `active_plan` to null | Remove session entry, clear plan lock |
+
+### Seamless Switching
+
+Running `/go-time SB-1288` while SB-1133 is active in the same session automatically pauses SB-1133 (unbinds, unlocks) before activating SB-1288. No need to explicitly pause first.
 
 ---
 

@@ -364,6 +364,8 @@ Add the first sub-plan:
 }
 ```
 
+Do not modify the `sessions` object in the registry. Session bindings are managed by `/go-time`.
+
 Add the epic to the registry (create `epics` section if needed):
 ```json
 {

@@ -65,7 +65,7 @@ This plugin fixes both problems:
 | `/planning-with-james:update-knowledge` | Update after code changes |
 | `/planning-with-james:update-knowledge verify` | Check knowledge graph health |
 | `/planning-with-james:update-knowledge repair` | Fix any problems |
-| `/planning-with-james:explore` | Ask about code: how it works, what changes affect, trace flows |
+| `/planning-with-james:query` | Ask about code: how it works, what changes affect, trace flows |
 | `/planning-with-james:plan` | Start planning something |
 | `/planning-with-james:go-time` | Execute a plan |
 | `/planning-with-james:go-time pause` | Pause implementation |

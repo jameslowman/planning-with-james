@@ -2,7 +2,7 @@
 
 ## v1.1.0
 
-### New: `/explore` skill
+### New: `/query` skill (originally `/explore`, renamed to avoid collision with Claude Code's built-in Explore agent)
 
 Query the knowledge graph for everyday work without starting a full planning session. Ask how something works, check the blast radius of a change, trace a flow through the system, or review what your current diff affects.
 

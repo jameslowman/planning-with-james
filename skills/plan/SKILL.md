@@ -222,7 +222,7 @@ Also register this plan in `.claude/planning-with-james/plans/_registry.json`:
 
 ```json
 {
-  "active_plan": null,
+  "sessions": {},
   "plans": {
     "{feature-name}": {
       "name": "{descriptive plan name}",
@@ -235,7 +235,7 @@ Also register this plan in `.claude/planning-with-james/plans/_registry.json`:
 }
 ```
 
-If `_registry.json` already exists, merge the new plan into the existing `plans` object. Do not overwrite other plans.
+If `_registry.json` already exists, merge the new plan into the existing `plans` object. Do not overwrite other plans. Do not modify the `sessions` object -- session bindings are managed exclusively by `/go-time`.
 
 **Plan lifecycle states**: `planning` → `planned` → `active` ⇄ `paused` → `completed`. Only `/go-time` changes status beyond `planned`. See `/planning-with-james:go-time` for details.
 
