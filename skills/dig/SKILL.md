@@ -1,6 +1,6 @@
 ---
-name: query
-description: Query the knowledge graph to understand code, trace impact, or review changes. Args: natural language query.
+name: dig
+description: Dig into the knowledge graph to understand code, trace impact, or review changes. Args: natural language query.
 disable-model-invocation: true
 allowed-tools: Bash, Glob, Grep, Read, Write, Task, AskUserQuestion
 ---
@@ -73,11 +73,14 @@ Then branch based on query type:
 4. Identify the target module(s) from the query. Match against module names and descriptions in `_discovery.json`. If no exact match, search for partial matches and ask the user to confirm if ambiguous.
 5. Read the target module(s) `_index.md`: `.claude/planning-with-james/knowledge/modules/{module-id}/_index.md`
 6. Read the target module(s) `_refs.json`: `.claude/planning-with-james/knowledge/modules/{module-id}/_refs.json`
+7. **Hierarchy context**: Check the target module's `module_type` in `_discovery.json`:
+   - If **container**: Also load `_index.md` for each child module listed in its `children` array. You'll need these to present what the container encompasses.
+   - If **leaf** with a non-null `parent`: Also load the parent's `_index.md` for broader context about the containing domain.
 
 ### Diff Impact
 3. Run `git diff --name-only` and `git diff --cached --name-only` to get all changed files (staged and unstaged).
 4. If no files changed: respond "No uncommitted changes found." **Stop here.**
-5. Map changed files to modules using `_discovery.json` path entries. Each file should map to at most one module.
+5. Map changed files to modules using `_discovery.json` path entries. Use **deepest match**: if a file is under both a container's path and a leaf child's path, assign it to the leaf child (the most specific module). A container should only be directly affected if files changed in its directory but outside any child's path.
 6. Read `.claude/planning-with-james/knowledge/_graph.json`
 7. Read `_index.md` for each affected module.
 
@@ -86,13 +89,24 @@ Then branch based on query type:
 ## Step 5: Execute the Query
 
 ### Understanding
-Synthesize an explanation from the knowledge graph. Cover:
+Synthesize an explanation from the knowledge graph.
+
+**For leaf modules**, cover:
 - **Purpose**: What does this module/component do and why does it exist?
 - **Key files**: The important files and what each does.
 - **Public interface**: What other modules can call/use.
 - **How it connects**: What it depends on and what depends on it (from `_graph.json` edges and `_refs.json`).
 - **Patterns and conventions**: Internal patterns, frameworks used, coding conventions.
 - **Gotchas**: Known issues, caveats, things that are non-obvious.
+- **Context**: If this leaf has a parent container, mention where it fits in the broader domain.
+
+**For container modules**, cover:
+- **Overview**: What domain/area does this container cover?
+- **Children**: List each child module with a brief description. Indicate which are leaves and which are sub-containers.
+- **Shared patterns**: Patterns, utilities, or conventions shared across children.
+- **Common interface**: If children are accessed through a unified entry point.
+- **How it connects**: Cross-cutting dependencies to/from modules outside this container.
+- **Offer to dive deeper**: "This is a container module with {N} children. Want me to dive into a specific child?"
 
 Present this as a clear, structured response. Reference specific files and modules.
 
@@ -100,10 +114,13 @@ Present this as a clear, structured response. Reference specific files and modul
 Traverse `_graph.json` edges outward from the target module(s), up to 2 hops:
 
 1. **Direct dependents** (1 hop): modules with edges pointing TO the target. Note the edge type (imports, calls, shares_types, etc.) and what specifically connects them.
-2. **Indirect dependents** (2 hops): modules that depend on the direct dependents. Note the propagation path.
-3. **Impact assessment**: For each dependent, describe what specifically might break or need changes. Categorize as high/medium/low risk based on coupling strength.
+2. **Containment impact**: Follow `contains` edges in both directions:
+   - If the target is a **leaf**: check siblings (other children of the same container) — they may share interfaces or patterns affected by the change. Check the parent container for shared concerns.
+   - If the target is a **container**: all children are potentially affected. List them with risk assessment.
+3. **Indirect dependents** (2 hops): modules that depend on the direct dependents. Note the propagation path.
+4. **Impact assessment**: For each dependent, describe what specifically might break or need changes. Categorize as high/medium/low risk based on coupling strength.
 
-Present as an impact map: target at center, direct dependents first ring, indirect dependents second ring.
+Present as an impact map: target at center, direct dependents first ring (including siblings via shared container), indirect dependents second ring.
 
 ### Flow
 Find a path through `_graph.json` between the start and end points:

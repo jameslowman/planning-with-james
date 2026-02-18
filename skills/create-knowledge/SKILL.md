@@ -26,7 +26,7 @@ Read .claude/planning-with-james/knowledge/_create_progress.json
 - **If file exists and `status` is `"in_progress"`**:
   Resume from where it stopped based on `phase`:
   - `"discovery"`: Phase 1 didn't complete. Check if `_discovery.json` exists. If yes, skip to Phase 2. If no, re-run Phase 1.
-  - `"deep_dives"`: Phase 2 was interrupted. Check which modules already have `_index.md` files. Only process modules that don't. Inform user: "Resuming interrupted knowledge creation. {N} of {M} modules already indexed."
+  - `"deep_dives"`: Phase 2 was interrupted. Check `_discovery.json` for modules with `module_type: "pending"` — these still need classification. Also check for modules that have `_index.md` files but whose agent may not have returned (the file exists but the module isn't in `modules_classified`). Resume at the current wave. Inform user: "Resuming interrupted knowledge creation. Wave {N}, {classified} of {total} modules classified."
   - `"connectivity"`: Phase 3 was interrupted. Re-run Phase 3 (it's idempotent).
   - `"finalization"`: Just run the finalization phase.
 
@@ -88,7 +88,10 @@ Create a mental map of:
       "name": "Human Readable Name",
       "path": "src/modules/feature",
       "description": "Brief description of what this module does",
-      "type": "feature|service|library|config|infrastructure"
+      "type": "feature|service|library|config|infrastructure",
+      "module_type": "pending",
+      "parent": null,
+      "children": []
     }
   ],
   "entry_points": [
@@ -101,7 +104,12 @@ Create a mental map of:
 }
 ```
 
-Be thorough. Identify ALL significant modules. A module is any cohesive unit of functionality - this could be a directory, a service, a feature domain, or a logical grouping.
+**Identify modules at the highest natural boundary.** Look for top-level domains, services, and packages -- don't try to enumerate every nested directory. If `parsers/` is a top-level domain, list `parsers/` as one module even if it contains sub-directories. Phase 2 agents will read the code and decide whether a module is a leaf (cohesive unit → full documentation) or a container (distinct sub-domains → lightweight overview, children get their own modules). Let Phase 2 handle depth.
+
+The three new fields on each module entry:
+- `module_type`: Always `"pending"` in Phase 1. Phase 2 agents will classify as `"leaf"` or `"container"`.
+- `parent`: Always `null` for top-level modules discovered in Phase 1. Set to parent module ID for children discovered in Phase 2.
+- `children`: Always `[]` initially. Populated when a Phase 2 agent classifies a module as `"container"`.
 
 **After completing Phase 1**, write the progress file:
 
@@ -113,41 +121,59 @@ Be thorough. Identify ALL significant modules. A module is any cohesive unit of 
   "phase": "deep_dives",
   "total_modules": {count from _discovery.json},
   "modules_indexed": [],
+  "modules_classified": [],
+  "current_wave": 0,
   "status": "in_progress"
 }
 ```
 
-## Phase 2: Deep Dives
+## Phase 2: Deep Dives (Iterative Waves)
 
-Now spawn parallel subagents to deeply analyze each module identified in Phase 1.
+Phase 2 classifies each module as LEAF (cohesive unit → full documentation) or CONTAINER (distinct sub-domains → lightweight overview, children get their own modules). This runs in waves: each wave processes all pending modules in parallel, containers produce children for the next wave, and waves repeat until everything is a leaf.
 
-For EACH module in `_discovery.json`, spawn a Task agent with:
+### Wave Loop
+
+```
+while there are modules with module_type: "pending" in _discovery.json:
+  1. Collect all pending modules
+  2. Launch parallel agents for ALL pending modules (one agent per module)
+  3. Process results:
+     - LEAF: mark as classified, verify files written
+     - CONTAINER: mark as classified, add children as new pending modules
+  4. Update _discovery.json with results
+  5. Update _create_progress.json (increment current_wave, update modules_classified)
+  6. Next wave
+```
+
+### Subagent Prompt
+
+For EACH pending module, spawn a Task agent with:
 - `subagent_type`: "Explore"
 - `model`: "opus" (we want maximum depth)
 
-**IMPORTANT**: Launch ALL module subagents in a SINGLE message with multiple Task tool calls to run them in parallel.
+**IMPORTANT**: Launch ALL pending module subagents for the current wave in a SINGLE message with multiple Task tool calls to run them in parallel.
 
-Each subagent should be given this prompt template (fill in the module details):
+Use this prompt template (fill in the module details):
 
 ```
 You are analyzing the "{module_name}" module located at "{module_path}".
+{if parent: "This is a child of the '{parent_name}' container module."}
 
-Your task is to create comprehensive documentation for this module.
+Your task is to create documentation for this module AND decide whether it is a LEAF or CONTAINER.
 
 ## Investigation Steps
 
-1. Read all significant files in this module
+1. Read all significant files in this module's directory
 2. Understand the purpose, patterns, and structure
-3. Identify:
-   - Key files and their purposes
-   - Public interfaces/APIs/exports
-   - Internal patterns and conventions
-   - Dependencies (imports from other modules)
-   - External references (what other parts of the codebase might use this)
+3. Decide: Is this a LEAF or a CONTAINER?
 
-## Output
+**LEAF** = a cohesive unit of functionality. The code here works together toward one purpose. Sub-directories (if any) are implementation details, not separate domains.
 
-Create the following files:
+**CONTAINER** = this directory houses multiple distinct sub-domains that deserve their own module documentation. The sub-domains have different purposes, different interfaces, or different domain concepts.
+
+**When in doubt, lean LEAF.** Over-splitting creates busywork. A leaf module can document sub-areas in its prose and detail files. Only classify as CONTAINER when the sub-domains are genuinely distinct.
+
+## If LEAF: Create Full Documentation
 
 ### 1. Module Index: `.claude/planning-with-james/knowledge/modules/{module_id}/_index.md`
 
@@ -155,6 +181,8 @@ Create the following files:
 ---
 module_id: {module_id}
 module_name: {module_name}
+module_type: leaf
+parent: {parent_id or null}
 path: {module_path}
 last_updated: {ISO timestamp}
 last_commit: {current git commit hash}
@@ -207,18 +235,92 @@ Use your judgment on what detail files are needed.
   "notes": "Any observations about cross-module relationships"
 }
 ```
+
+### 4. Return Value
+
+Return ONLY this JSON:
+{"module_id": "{module_id}", "type": "leaf"}
+
+## If CONTAINER: Create Lightweight Documentation
+
+### 1. Module Index: `.claude/planning-with-james/knowledge/modules/{module_id}/_index.md`
+
+```markdown
+---
+module_id: {module_id}
+module_name: {module_name}
+module_type: container
+parent: {parent_id or null}
+path: {module_path}
+children: []  # Will be populated by the orchestrator
+last_updated: {ISO timestamp}
+last_commit: {current git commit hash}
+external_refs: []  # Will be filled in Phase 3
+keywords: []       # Searchable terms
+---
+
+# {module_name}
+
+## Overview
+[2-3 sentences on what this area of the codebase covers]
+
+## Children
+[List each child sub-domain you identified with a brief description of what it does]
+
+## Shared Patterns
+[Patterns, conventions, or utilities shared across children]
+
+## Common Interface
+[If the children share a common interface or are used through a unified entry point, describe it]
 ```
 
-After ALL Phase 2 subagents complete, verify each module has its `_index.md` and `_refs.json` created.
+### 2. References File: `.claude/planning-with-james/knowledge/modules/{module_id}/_refs.json`
 
-**If resuming Phase 2**: Check which modules already have `_index.md` files. Only launch subagents for modules that are missing. This allows resume after partial completion.
+```json
+{
+  "imports_from": ["list", "of", "file", "paths", "imported"],
+  "imported_by": [],  // Leave empty, filled in Phase 3
+  "calls_to": ["external/api/paths"],
+  "shared_types": ["TypeName"],
+  "notes": "Any observations about cross-module relationships"
+}
+```
 
-**After Phase 2 is complete**, update the progress file:
+### 3. Return Value
+
+Return ONLY this JSON:
+{"module_id": "{module_id}", "type": "container", "children": [{"id": "child-slug", "name": "Child Name", "path": "path/to/child", "description": "Brief description", "type": "feature|service|library|config|infrastructure"}]}
+
+Each child should be a distinct sub-domain. Use kebab-case IDs. The child path should be the directory containing that sub-domain's code.
+```
+
+### Processing Results
+
+After all agents in a wave complete:
+
+1. **For each LEAF result**: Mark the module as `module_type: "leaf"` in `_discovery.json`. Add to `modules_classified` in progress file. Verify `_index.md` and `_refs.json` were written.
+
+2. **For each CONTAINER result**: Mark the module as `module_type: "container"` in `_discovery.json`. Add returned children as new entries with `module_type: "pending"`, `parent` set to the container's ID, and `children: []`. Update the container's `children` array with the new child IDs. Update the container's `_index.md` frontmatter `children` field. Add container to `modules_classified` in progress file.
+
+3. **Update progress**: Increment `current_wave`, update `modules_classified` list, update `total_modules` count (it grows as containers produce children).
+
+### Resume Handling
+
+If resuming mid-Phase 2:
+- Read `_discovery.json` for modules with `module_type: "pending"` — these need classification
+- Check for orphaned files: modules with `_index.md` on disk but not in `modules_classified`. These are from agents that wrote files but whose results weren't recorded. Read the `_index.md` frontmatter to determine if leaf or container, and process accordingly.
+- Resume at the next wave with remaining pending modules
+
+### Phase 2 Complete
+
+When no modules have `module_type: "pending"`, Phase 2 is done. Update progress:
 
 ```json
 {
   "phase": "connectivity",
-  "modules_indexed": ["mod-a", "mod-b", "...all completed module IDs"],
+  "modules_indexed": ["mod-a", "mod-b", "...all leaf and container module IDs"],
+  "modules_classified": ["mod-a", "mod-b", "...all classified module IDs"],
+  "current_wave": {final wave number},
   "status": "in_progress"
 }
 ```
@@ -230,9 +332,10 @@ Now spawn subagents to map the relationships between modules.
 Launch a SINGLE Task agent with `subagent_type`: "Explore" to:
 
 1. Read all `_refs.json` files from each module
-2. Cross-reference imports and exports
-3. Trace API calls and shared types
-4. Build the complete relationship graph
+2. Read `_discovery.json` to get the module hierarchy (parent/children relationships)
+3. Cross-reference imports and exports
+4. Trace API calls and shared types
+5. Build the complete relationship graph, including containment edges from the hierarchy
 
 **Output**:
 
@@ -247,14 +350,16 @@ Launch a SINGLE Task agent with `subagent_type`: "Explore" to:
       "id": "module-id",
       "name": "Module Name",
       "path": "src/path",
-      "type": "feature|service|library"
+      "type": "feature|service|library",
+      "module_type": "leaf|container",
+      "parent": null
     }
   ],
   "edges": [
     {
       "from": "module-a",
       "to": "module-b",
-      "type": "imports|calls|shares_types|depends_on",
+      "type": "contains|imports|calls|shares_types|depends_on",
       "description": "Brief description of relationship"
     }
   ],
@@ -267,6 +372,17 @@ Launch a SINGLE Task agent with `subagent_type`: "Explore" to:
   ]
 }
 ```
+
+**Edge types**:
+- `contains`: Container → child. Generated from `_discovery.json` parent/children relationships, not from import analysis.
+- `imports`: Module A imports code from module B.
+- `calls`: Module A makes runtime calls to module B (API calls, RPC, event emission).
+- `shares_types`: Modules share type definitions or data structures.
+- `depends_on`: General dependency not captured by the above (configuration, build order, etc.).
+
+**Node fields**:
+- `module_type`: `"leaf"` or `"container"` — from `_discovery.json`
+- `parent`: Parent module ID or `null` for top-level — from `_discovery.json`
 
 ### 2. Create `_architecture.md`:
 
@@ -281,6 +397,10 @@ last_commit: {git commit hash}
 ## System Diagram
 
 [Text-based description of how components connect]
+
+## Module Hierarchy
+
+[Tree representation of the container/leaf hierarchy. Show which modules contain which children, with brief descriptions.]
 
 ## Module Clusters
 
@@ -304,7 +424,7 @@ last_commit: {git commit hash}
 
 ### 3. Update each module's `_index.md` frontmatter:
 
-Add the `external_refs` field with modules that reference this one.
+Add the `external_refs` field with modules that reference this one. For container modules, also update the `children` field in frontmatter to include the final list of child module IDs.
 
 **After Phase 3 is complete**, update the progress file:
 
@@ -324,13 +444,17 @@ Create the `_overview.md` file:
 last_updated: {ISO timestamp}
 last_commit: {full git commit hash}
 total_modules: {count}
+leaf_modules: {count of modules with module_type: "leaf"}
+container_modules: {count of modules with module_type: "container"}
+max_depth: {deepest nesting level in the hierarchy}
 indexing_completed: true
 ---
 
 # Codebase Knowledge Base
 
 ## Quick Stats
-- **Modules indexed**: {count}
+- **Modules indexed**: {count} ({leaf_count} leaf, {container_count} container)
+- **Max hierarchy depth**: {max_depth}
 - **Last indexed**: {date}
 - **Commit**: {short hash}
 
@@ -341,13 +465,25 @@ indexing_completed: true
 
 | Module | Path | Type | Description |
 |--------|------|------|-------------|
-| [Module Name](modules/module-id/_index.md) | src/path | type | Brief description |
+| [Module Name](modules/module-id/_index.md) | src/path | leaf/container | Brief description |
+
+## Module Hierarchy
+
+{Tree representation showing container/leaf nesting. Example:}
+{- parsers/ (container)}
+{  - air-parser (leaf)}
+{  - ocean-fcl/ (container)}
+{    - ocean-fcl-email (leaf)}
+{    - ocean-fcl-attachment/ (container)}
+{      - ocean-fcl-attachment-excel (leaf)}
+{      - ocean-fcl-attachment-pdf (leaf)}
 
 ## How to Navigate
 
 1. Start with [Architecture](_architecture.md) for system overview
 2. Use [Graph](_graph.json) for relationship queries
 3. Dive into specific [modules](modules/) as needed
+4. Container modules link to their children for drilling down
 
 ## Entry Points
 
@@ -367,7 +503,9 @@ indexing_completed: true
 ## Completion
 
 After all phases complete, output a summary:
-- Total modules indexed
-- Total relationships mapped
+- Total modules indexed (leaf count + container count)
+- Max hierarchy depth
+- Total waves in Phase 2
+- Total relationships mapped (containment edges + cross-cutting edges)
 - Any warnings or areas that need attention
 - Suggestions for the user

@@ -1,8 +1,40 @@
 # Release Notes
 
+## v2.0.0
+
+### Recursive Module Discovery
+
+The knowledge graph now understands hierarchy. Instead of treating every top-level directory as a flat module, the indexer recursively classifies modules as **leaf** (cohesive unit -- gets full documentation) or **container** (distinct sub-domains -- gets a lightweight overview, children become their own modules).
+
+This runs in waves: Phase 1 identifies top-level modules, Phase 2 agents read the code and decide leaf or container, containers produce children for the next wave, repeat until everything is a leaf. Within each wave, agents run in parallel.
+
+**What changed:**
+
+- **`create-knowledge`**: Phase 2 rewritten as iterative wave-based deep dives with leaf/container classification. `_discovery.json` now tracks `module_type`, `parent`, and `children` per module. `_graph.json` includes `contains` edges and hierarchy fields on nodes. `_overview.md` shows hierarchy tree and leaf/container stats.
+
+- **`update-knowledge`**: File-to-module mapping uses deepest match (assigns to the most specific leaf, not the container). Update agents report `structure_changed` when a module's classification should change. Verify mode checks hierarchy consistency (valid parents, no orphans, no circular refs). Repair mode fixes hierarchy problems and can upgrade flat (v1.x) knowledge graphs to hierarchical via legacy migration.
+
+- **`/dig`** (renamed from `/query`): Containers show overview + children list with offer to dive deeper. Leaves with a parent load parent context. Impact traversal follows containment edges (siblings, children of affected containers). Diff impact uses deepest-match logic.
+
+- **`design-decisions.md`**: New section documenting the recursive discovery design, including a worked example.
+
+### Rename: `/query` -> `/dig`
+
+The query skill is now `/planning-with-james:dig`. Shorter, clearer, and better describes what it does -- digging into the knowledge graph to understand code, trace impact, or review changes.
+
+### Upgrading from v1.x
+
+Existing knowledge graphs work as-is. To upgrade to hierarchical format:
+```
+/planning-with-james:update-knowledge repair
+```
+This detects the flat format, classifies each module as leaf or container, creates children for containers, and rebuilds the graph with containment edges. No need to re-index from scratch.
+
+---
+
 ## v1.1.0
 
-### New: `/query` skill (originally `/explore`, renamed to avoid collision with Claude Code's built-in Explore agent)
+### New: `/query` skill (renamed to `/dig` in v2.0, originally `/explore`)
 
 Query the knowledge graph for everyday work without starting a full planning session. Ask how something works, check the blast radius of a change, trace a flow through the system, or review what your current diff affects.
 

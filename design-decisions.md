@@ -33,7 +33,7 @@ The solution: build a comprehensive knowledge base *before* planning, so plannin
 |---------|---------|
 | `/planning-with-james:create-knowledge` | Full codebase indexing from scratch |
 | `/planning-with-james:update-knowledge [context\|verify\|repair]` | Incremental updates, integrity checks, repairs |
-| `/planning-with-james:query` | Query the knowledge graph for understanding, impact, flows |
+| `/planning-with-james:dig` | Dig into the knowledge graph for understanding, impact, flows |
 | `/planning-with-james:plan` | Structured 7-phase planning with adaptive checkpoints |
 | `/planning-with-james:go-time [plan-id\|pause\|status]` | Execute plan tasks with full continuity |
 | `/planning-with-james:epic [review\|status\|epic-id]` | Create and manage multi-plan epics |
@@ -101,7 +101,76 @@ knowledge/
 - Phase 2 benefits from parallelism (many agents)
 - Phase 3 needs to see all outputs (one agent)
 
-### 3. Cascading Graph Updates
+### 3. Recursive Module Discovery
+
+**Decision**: Phase 2 agents classify each module as LEAF or CONTAINER after reading the code. Containers produce children that get classified in the next wave. Repeat until everything is a leaf.
+
+**The Problem**: Flat module discovery is too shallow for complex codebases. In a monorepo where `parsers/` contains `ocean_fcl/` which contains `email/`, `attachment/excel/`, `attachment/pdf/` -- you either treat "parsers" as one module (too shallow, mixing unrelated concerns) or you require Phase 1 to enumerate every nested directory without reading code (impractical, since you can't tell depth boundaries from directory structure alone).
+
+**Why Phase 2 Decides**: The agent reading the actual code is the one with context to judge. Phase 1 sees directories; Phase 2 sees imports, interfaces, and domain boundaries. A directory that *looks* like a single module from the outside might reveal three distinct sub-domains once you read the code. Only the deep-dive agent has that information.
+
+**"When in doubt, lean LEAF"**: Over-splitting creates busywork. Under-splitting loses some granularity but the knowledge is still there -- a leaf module can document sub-areas in its prose and detail files. The cost of a false container (spawning extra agents, managing extra hierarchy) is higher than the cost of a false leaf (slightly less granular module boundaries).
+
+**How Waves Work**:
+- **Wave 0**: Phase 1 identifies top-level modules, all marked `module_type: "pending"`
+- **Wave 1**: Parallel agents classify each pending module. Leaves write full docs. Containers write lightweight docs and return children.
+- **Wave 2+**: New children (also `pending`) get classified in the next wave. Repeat until no pending modules remain.
+- Within each wave, agents run in **parallel** (independent modules). Across waves, execution is **sequential** (children depend on parent classification).
+
+**Graph Representation**:
+- `_graph.json` nodes include `module_type` ("leaf" or "container") and `parent` (null for top-level)
+- A `"contains"` edge type links containers to their children -- these are derived from `_discovery.json` hierarchy, not from import analysis
+- Cross-cutting edges (`imports`, `calls`, `shares_types`, `depends_on`) connect any modules regardless of hierarchy level. A leaf can import from a sibling, a cousin, or a top-level module.
+
+**Flat Folder Structure**: All modules live in `modules/{module-id}/` regardless of hierarchy depth. The hierarchy exists in `_discovery.json` (via `parent` and `children` fields) and `_graph.json` (via `contains` edges), not in the filesystem. This keeps paths simple and avoids deeply nested folder structures.
+
+**Worked Example**:
+
+```
+Codebase:
+  parsers/
+    ocean_fcl/
+      email/
+      attachment/
+        excel/
+        pdf/
+    air/
+
+Wave 0 (Phase 1 output):
+  _discovery.json modules:
+    - {id: "parsers", path: "parsers/", module_type: "pending", parent: null, children: []}
+    - {id: "air-parser", path: "parsers/air/", module_type: "pending", parent: null, children: []}
+
+Wave 1 (Phase 2, first pass):
+  Agent for "parsers" reads code → too many distinct domains → CONTAINER
+    Returns: {type: "container", children: [{id: "ocean-fcl", path: "parsers/ocean_fcl/"}]}
+    Writes lightweight _index.md (overview, children list, shared patterns)
+  Agent for "air-parser" reads code → cohesive unit → LEAF
+    Returns: {type: "leaf"}
+    Writes full _index.md, _refs.json, detail files
+
+  _discovery.json updated:
+    - parsers: module_type: "container", children: ["ocean-fcl"]
+    - air-parser: module_type: "leaf"
+    - ocean-fcl: module_type: "pending", parent: "parsers" ← NEW
+
+Wave 2:
+  Agent for "ocean-fcl" reads code → still distinct sub-domains → CONTAINER
+    Returns: {type: "container", children: [{id: "ocean-fcl-email", ...}, {id: "ocean-fcl-attachment", ...}]}
+
+Wave 3:
+  Agent for "ocean-fcl-email" → LEAF
+  Agent for "ocean-fcl-attachment" → CONTAINER (excel and pdf are different enough)
+    Returns children: [{id: "ocean-fcl-attachment-excel", ...}, {id: "ocean-fcl-attachment-pdf", ...}]
+
+Wave 4:
+  Agent for "ocean-fcl-attachment-excel" → LEAF
+  Agent for "ocean-fcl-attachment-pdf" → LEAF
+
+Done. All modules classified. Max depth: 4.
+```
+
+### 4. Cascading Graph Updates
 
 **Decision**: When ANY module is updated, automatically update all connected modules.
 
@@ -119,7 +188,7 @@ knowledge/
 5. Rebuild `_graph.json` after all cascade updates complete
 6. Progress file tracks every completed step for resume capability
 
-### 4. Multi-Mode Update Command
+### 5. Multi-Mode Update Command
 
 **Decision**: Single `update-knowledge` command with four modes based on argument.
 
@@ -137,7 +206,7 @@ knowledge/
 
 **Why not separate commands**: Reduces cognitive overhead. All modes share cascade logic. Verify/repair are maintenance operations on the same knowledge base.
 
-### 5. Clarification Before Execution
+### 6. Clarification Before Execution
 
 **Decision**: In guided mode, ask clarifying questions before doing work.
 
@@ -156,7 +225,7 @@ knowledge/
 | Relationship fix | "connected", "calls", "depends" | Update graph |
 | New area | "missed the X system" | Create new module |
 
-### 6. Knowledge-First Principle
+### 7. Knowledge-First Principle
 
 **Decision**: NEVER explore code without first consulting the knowledge graph.
 
@@ -176,7 +245,7 @@ knowledge/
 
 This is non-negotiable for all operations: updates, deep dives, corrections, new areas.
 
-### 7. Choose-Your-Own-Adventure Navigation
+### 8. Choose-Your-Own-Adventure Navigation
 
 **Decision**: Design documents so agents can traverse them like a graph.
 
@@ -191,7 +260,7 @@ This is non-negotiable for all operations: updates, deep dives, corrections, new
 - Agents can find relevant context efficiently
 - Mimics how humans navigate documentation
 
-### 7. Frontmatter for Machine + Human Reading
+### 9. Frontmatter for Machine + Human Reading
 
 **Decision**: Every markdown file has YAML frontmatter with structured metadata.
 
@@ -214,7 +283,7 @@ keywords: [oauth, jwt, session]
 - Timestamps enable staleness detection
 - Commit hashes enable git-based updates
 
-### 8. Session Start Hook for Auto-Detection
+### 10. Session Start Hook for Auto-Detection
 
 **Decision**: Hook on `SessionStart` to check knowledge base status.
 
@@ -499,13 +568,13 @@ This is designed to be run periodically as maintenance, or after a known failed 
 
 ---
 
-## Query System (formerly Explore)
+## Dig System (formerly Query, originally Explore)
 
-### `/planning-with-james:query`
+### `/planning-with-james:dig`
 
-A lightweight, stateless skill for querying the knowledge graph during everyday work -- understanding how things work, impact analysis, PR review context.
+A lightweight, stateless skill for digging into the knowledge graph during everyday work -- understanding how things work, impact analysis, PR review context.
 
-Originally named `/explore`, renamed to `/query` to avoid collision with Claude Code's built-in Explore agent type, which caused the skill to be uninvocable.
+Originally named `/explore`, renamed to `/query` to avoid collision with Claude Code's built-in Explore agent type, then renamed again to `/dig` for clarity and brevity.
 
 ### Why This Exists
 
@@ -513,7 +582,7 @@ The knowledge graph was originally only consumed during `/plan`. But the graph c
 
 ### Stateless Design
 
-Unlike `/plan` and `/go-time`, the query skill has:
+Unlike `/plan` and `/go-time`, the dig skill has:
 - No phases or phase progression
 - No state files (`_plan_state.json`, etc.)
 - No registry entries

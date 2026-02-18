@@ -10,18 +10,26 @@ A Claude Code plugin for deep codebase knowledge and structured planning.
 /plugin install planning-with-james@james-plugins
 ```
 
-**First time only - index your codebase:**
+**First time only -- index your codebase:**
 ```
 /planning-with-james:create-knowledge
 ```
-This takes a while. Go get coffee. It's building a knowledge graph of your entire codebase - every module, every relationship, documented and navigable.
+This takes a while. Go get coffee. It's building a knowledge graph of your entire codebase -- every module, every relationship, documented and navigable. Complex codebases get indexed recursively: top-level directories are analyzed first, and any that contain distinct sub-domains are broken down further until every module is a cohesive leaf.
+
+**Dig into what you've got:**
+```
+/planning-with-james:dig how does the auth system work
+/planning-with-james:dig what breaks if I change the rate module
+/planning-with-james:dig what's affected by my current changes
+```
+Ask questions against the knowledge graph. Understand how things work, check blast radius before making changes, or review what your uncommitted diff touches.
 
 **Plan something:**
 ```
 /planning-with-james:plan
 ```
 
-It will ask what you're working on. Give it context. Paste a Linear ticket URL, describe the bug, share your theory about what's wrong. Ramble at it. More context is better.
+Give it context. Paste a Linear ticket URL, describe the bug, share your theory about what's wrong. Ramble at it. More context is better.
 
 ```
 User: We need to add UNLOCODE data to the rate search response. Here's the ticket:
@@ -32,7 +40,7 @@ shipping visualization. I think the data is already in the routing tables
 somewhere, we just need to surface it through the API.
 ```
 
-It will start asking questions. It will show you what it found. It will check if its understanding matches yours. This back-and-forth is the point - your knowledge fills gaps that code analysis can't.
+It will start asking questions. It will show you what it found. It will check if its understanding matches yours. This back-and-forth is the point -- your knowledge fills gaps that code analysis can't.
 
 **Execute the plan:**
 ```
@@ -51,9 +59,9 @@ Or worse: Claude produces a plan that *looks* good but is based on stale assumpt
 
 This plugin fixes both problems:
 
-1. **Knowledge graph** - Your codebase is indexed to files that survive context loss. When Claude forgets, the files remember.
+1. **Knowledge graph** -- Your codebase is indexed to files that survive context loss. When Claude forgets, the files remember.
 
-2. **Real conversations** - Every planning phase stops and asks: "Does this match your understanding? What am I missing?" No more racing through phases to produce an artifact.
+2. **Real conversations** -- Every planning phase stops and asks: "Does this match your understanding? What am I missing?" No more racing through phases to produce an artifact.
 
 ---
 
@@ -64,8 +72,8 @@ This plugin fixes both problems:
 | `/planning-with-james:create-knowledge` | Index your codebase (first time) |
 | `/planning-with-james:update-knowledge` | Update after code changes |
 | `/planning-with-james:update-knowledge verify` | Check knowledge graph health |
-| `/planning-with-james:update-knowledge repair` | Fix any problems |
-| `/planning-with-james:query` | Ask about code: how it works, what changes affect, trace flows |
+| `/planning-with-james:update-knowledge repair` | Fix problems, upgrade flat graphs to hierarchical |
+| `/planning-with-james:dig` | Dig into the knowledge graph -- understand, trace impact, review diffs |
 | `/planning-with-james:plan` | Start planning something |
 | `/planning-with-james:go-time` | Execute a plan |
 | `/planning-with-james:go-time pause` | Pause implementation |

@@ -71,8 +71,10 @@ This phase is LEAN. Read only what's needed to plan the update.
 
 4. Read `.claude/planning-with-james/knowledge/_discovery.json` (this is small -- just module IDs and paths).
 
-5. Map changed files to modules using `_discovery.json` paths. Build:
-   - `directly_affected_modules`: modules with changed files
+5. Map changed files to modules using `_discovery.json` paths. Use **deepest match**: if a file is under both a container's path and a leaf child's path, assign it to the leaf child (the most specific module). A container should only be directly affected if files changed in its directory but outside any child's path.
+
+   Build:
+   - `directly_affected_modules`: modules with changed files (prefer deepest/most specific match)
    - `new_directories`: directories with changes that don't map to any known module
    - `deleted_directories`: known module paths that no longer exist
 
@@ -145,7 +147,9 @@ Files changed in this module:
 
 After completing all file writes, return ONLY this JSON (nothing else):
 
-{"module_id": "{module_id}", "interface_changed": true|false, "dependencies_changed": true|false, "scope_changed": true|false, "summary": "One sentence describing what changed"}
+{"module_id": "{module_id}", "interface_changed": true|false, "dependencies_changed": true|false, "scope_changed": true|false, "structure_changed": true|false, "summary": "One sentence describing what changed"}
+
+- `structure_changed`: Set to `true` if the module's classification should change — e.g., a leaf module now has distinct sub-domains that warrant splitting into a container with children, or a container's children have converged into a single cohesive unit that should be a leaf. This does NOT trigger reclassification inline — it flags the module for the orchestrator.
 
 Keep your response BRIEF. All detailed work goes into the files you write. Your return value is just the summary.
 ```
@@ -196,7 +200,15 @@ Update progress file after each.
 
 For deleted modules, remove their knowledge folders and note in progress file. No subagent needed.
 
-### 2f. Update progress phase:
+### 2f. Check for structure changes
+
+After all direct module updates complete, check if any module reported `structure_changed: true`. If so:
+
+- Do NOT reclassify modules inline during a standard update. Reclassification is a disruptive operation (splitting a leaf into container + children, or merging children into a leaf) that needs user oversight.
+- Inform the user: "The following modules may need structural reclassification: {list}. Run `/planning-with-james:update-knowledge repair` to evaluate and fix hierarchy changes."
+- Continue with the cascade phase normally.
+
+### 2g. Update progress phase:
 ```json
 "phase": "cascade"
 ```
@@ -258,12 +270,13 @@ You are rebuilding the knowledge graph after updates.
 2. Read .claude/planning-with-james/knowledge/_discovery.json
 
 3. Rebuild .claude/planning-with-james/knowledge/_graph.json:
-   - Nodes from _discovery.json
-   - Edges from cross-referencing all _refs.json files
+   - Nodes from _discovery.json — include `module_type` ("leaf" or "container") and `parent` (parent module ID or null) on each node
+   - Cross-cutting edges from cross-referencing all _refs.json files (types: imports, calls, shares_types, depends_on)
+   - Containment edges (type: "contains") from _discovery.json parent/children relationships — for each module with children, create a "contains" edge from parent to each child
    - Clusters from logical groupings
    - Update generated_at and commit fields
 
-4. Update .claude/planning-with-james/knowledge/_architecture.md if relationships changed significantly
+4. Update .claude/planning-with-james/knowledge/_architecture.md if relationships changed significantly. Ensure the Module Hierarchy section reflects the current container/leaf tree.
 
 5. Update .claude/planning-with-james/knowledge/_discovery.json if modules were added/removed
 
@@ -542,6 +555,16 @@ Scan the codebase for significant directories that SHOULD be modules but aren't 
 - Does `_update_progress.json` exist with status "in_progress"?
 - If so, report it as an interrupted update
 
+### Check 7: Hierarchy Consistency
+For each module in `_discovery.json`:
+- **Valid parent references**: If `parent` is set, does the parent module exist and have this module in its `children` array?
+- **Children lists match**: If `children` is non-empty, do all child modules exist and reference this module as their `parent`?
+- **No orphans**: No module has a `parent` that doesn't exist in `_discovery.json`
+- **No circular references**: Following parent chains always reaches `null` (top-level) without cycles
+- **Containers have children**: Modules with `module_type: "container"` must have at least one child
+- **Leaves don't have children**: Modules with `module_type: "leaf"` must have an empty `children` array
+- **Legacy detection**: If any modules lack `module_type` fields entirely, report as "Legacy format: {N} modules without hierarchy classification"
+
 ## Output
 
 ```
@@ -570,11 +593,19 @@ Graph Integrity:
   Edges:             {count}
   Broken edges:      {list}
 
+Hierarchy Consistency:
+  Containers:        {count} (all with children: yes/no)
+  Leaves:            {count} (none with children: yes/no)
+  Orphaned children: {list} (parent doesn't exist)
+  Broken parent refs:{list} (parent exists but doesn't list this child)
+  Circular refs:     {list or "none"}
+  Legacy modules:    {count or "none"} (missing module_type field)
+
 Interrupted Updates:
   {status of _update_progress.json if exists}
 
 Recommendation:
-  {one of: "Knowledge base is healthy", "Run repair to fix {N} issues", "Run standard update to catch up on {N} commits", etc.}
+  {one of: "Knowledge base is healthy", "Run repair to fix {N} issues", "Run standard update to catch up on {N} commits", "Legacy format detected - run repair to upgrade to hierarchical format", etc.}
 ```
 
 ---
@@ -600,7 +631,15 @@ Execute all verify checks. Collect problems into categories.
     "stale_modules": ["mod-b", "mod-c"],
     "orphaned_modules": ["mod-d"],
     "missing_modules": ["path/to/new-area"],
-    "broken_edges": [{"from": "x", "to": "y"}]
+    "broken_edges": [{"from": "x", "to": "y"}],
+    "hierarchy_issues": {
+      "orphaned_children": ["mod-e"],
+      "empty_containers": ["mod-f"],
+      "leaves_with_children": ["mod-g"],
+      "broken_parent_refs": ["mod-h"],
+      "circular_refs": [],
+      "legacy_modules": 0
+    }
   },
   "problems_fixed": {},
   "status": "in_progress"
@@ -635,11 +674,77 @@ For each codebase directory that should be a module:
 - Spawn ONE agent to create knowledge (same prompt as new module creation)
 - Update progress file after each
 
-### 3e. Fix graph
-After all module fixes complete:
-- Spawn ONE agent to rebuild `_graph.json` from all `_refs.json` files
+### 3e. Fix hierarchy problems
+Before rebuilding the graph, fix hierarchy issues found by Check 7:
+
+**Orphaned children** (parent doesn't exist): Set `parent` to `null`, making them top-level modules.
+
+**Empty containers** (container with no children): Reclassify as `"leaf"`. Spawn ONE agent to rewrite the `_index.md` from lightweight container format to full leaf format by reading source code.
+
+**Leaves with children** (leaf that has entries listing it as parent): Reclassify as `"container"`. Spawn ONE agent to rewrite the `_index.md` from full leaf format to lightweight container format.
+
+**Broken parent references** (parent exists but doesn't list this child): Add the child to the parent's `children` array in `_discovery.json` and update the parent's `_index.md` frontmatter.
+
+**Circular references**: Break the cycle by setting the deepest module's `parent` to `null`.
+
+Update `_discovery.json` after each fix. Update progress file.
+
+### 3f. Legacy migration (if detected)
+
+When Check 7 detected modules without `module_type` fields ("Legacy format"), run a full classification pass to upgrade the flat knowledge graph to hierarchical format:
+
+1. Add `module_type: "pending"`, `parent: null`, `children: []` to ALL modules in `_discovery.json` that lack these fields.
+
+2. For each module, spawn ONE classification agent (linear, one at a time):
+
+```
+You are classifying the "{module_name}" module at "{module_path}" as LEAF or CONTAINER.
+
+## MANDATORY: Read Existing Knowledge First
+1. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_index.md
+2. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_refs.json
+
+Then read the source code at {module_path}.
+
+## Classification Criteria
+
+**LEAF** = a cohesive unit of functionality. The code works together toward one purpose.
+**CONTAINER** = houses multiple distinct sub-domains that deserve their own modules.
+**When in doubt, lean LEAF.**
+
+## If LEAF
+- Existing documentation is preserved as-is
+- Add `module_type: leaf` and `parent: {parent_id or null}` to _index.md frontmatter
+- Return: {"module_id": "{module_id}", "type": "leaf"}
+
+## If CONTAINER
+- Rewrite _index.md to lighter container format:
+  - Keep: module_id, module_name, path, last_updated, last_commit, external_refs, keywords
+  - Add: module_type: container, parent: {parent_id or null}, children: []
+  - Replace detailed sections with: Overview, Children list, Shared Patterns, Common Interface
+- Identify children as distinct sub-domains
+- Return: {"module_id": "{module_id}", "type": "container", "children": [{"id": "child-slug", "name": "Child Name", "path": "path/to/child", "description": "Brief description", "type": "feature|service|library|config|infrastructure"}]}
+```
+
+3. Process results through the same wave loop as create-knowledge Phase 2:
+   - LEAF results: mark as classified, preserve existing docs
+   - CONTAINER results: mark as classified, add children as `pending` in `_discovery.json`
+   - Repeat for newly added pending children until no pending modules remain
+
+4. For new children (didn't exist before), spawn ONE agent per child to create full documentation (same as create-knowledge Phase 2 leaf prompt).
+
+5. After all waves complete, proceed to graph rebuild (step 3g) which will generate containment edges.
+
+6. Update `_overview.md` with hierarchy stats (`leaf_modules`, `container_modules`, `max_depth`, module hierarchy tree).
+
+This lets users run `/planning-with-james:update-knowledge repair` to upgrade an existing flat graph to hierarchical without rebuilding from scratch.
+
+### 3g. Fix graph
+After all module and hierarchy fixes complete:
+- Spawn ONE agent to rebuild `_graph.json` from all `_refs.json` files AND `_discovery.json` hierarchy (generate `contains` edges from parent/children relationships)
+- Include `module_type` and `parent` fields on all nodes
 - Update `_discovery.json`
-- Update `_overview.md`
+- Update `_overview.md` (include `leaf_modules`, `container_modules`, `max_depth` in frontmatter and hierarchy tree in module map)
 
 ## Step 4: Finalize
 
@@ -651,10 +756,12 @@ Knowledge Base Repair Complete
 Problems found:    {total count}
 Problems fixed:    {total count}
 
-Orphaned modules removed: {list or "none"}
+Orphaned modules removed:  {list or "none"}
 Incomplete modules fixed:  {list or "none"}
-Stale modules refreshed:  {list or "none"}
+Stale modules refreshed:   {list or "none"}
 New modules created:       {list or "none"}
+Hierarchy fixes:           {list or "none"} (orphaned children, empty containers, etc.)
+Legacy migration:          {yes (N modules classified, M children created) or "not needed"}
 Graph rebuilt:             yes/no
 
 Knowledge base is now consistent with commit {HEAD}.
