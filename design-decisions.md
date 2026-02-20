@@ -667,6 +667,69 @@ Running `/go-time SB-1288` while SB-1133 is active in the same session automatic
 
 ---
 
+## Lessons System
+
+### Why Lessons Exist
+
+The epic system has `learnings.md` to carry context across sub-plans. But there was no equivalent for standalone plans or for project-wide patterns. A user correction in one plan ("that API is rate-limited, don't call it in a loop") would be lost by the next plan. Fresh sessions kept repeating the same mistakes.
+
+The lessons system fills this gap with a two-tier design: per-plan capture and project-level accumulation.
+
+### Two-Tier Design
+
+**Per-plan `lessons.md`**: Created alongside other plan files in Phase 0. Captures corrections, discoveries, effective patterns, and mistakes during planning and implementation. Sections: User Corrections, Discoveries, What Worked, Mistakes to Avoid. These are specific to the plan's problem and context.
+
+**Project-level `.claude/planning-with-james/lessons.md`**: Accumulated from all plans. Created lazily on first promotion (not pre-created). Sections: Patterns & Conventions, Mistakes to Avoid, What Works Well. These are generalized -- plan-specific references are rewritten for broader applicability.
+
+The two tiers serve different purposes. Per-plan lessons are raw and immediate -- useful during that plan's implementation. Project-level lessons are curated and general -- useful for any future plan.
+
+### Capture Moments
+
+Lessons are captured at natural pause points where the user provides feedback:
+
+- **Plan checkpoints (Phases 2-6)**: After incorporating user feedback, if the feedback contained a correction, a reusable codebase insight, or context about what failed before, an entry is added to the per-plan `lessons.md`. Not every correction is a lesson -- only insights that would help a fresh agent on a different plan.
+- **Go-time EVALUATE**: If a task reveals something unexpected about the codebase, it gets noted in both the scratch pad and `lessons.md` (Discoveries section).
+- **Go-time CHECKPOINTS**: The checkpoint report includes a count of lessons captured during that phase.
+
+### Consumption Points
+
+Lessons are read at the start of work to inform decisions:
+
+- **Plan Phase 0 (Step 9)**: Project-level lessons are read before planning begins. They inform scoping, discovery, and approach phases.
+- **Plan Phase 3 (Discovery subagents)**: If project-level lessons mention any of the modules being investigated, those entries are included in the subagent prompt.
+- **Go-time ORIENT (item 5)**: Per-plan lessons are read before every task. Project-level lessons are read on first orient of the session.
+- **Epic review**: Per-plan lessons from the completed sub-plan are included in the synthesis agent's file list.
+
+### Promotion Mechanics
+
+Per-plan lessons are promoted to project-level at two points:
+
+1. **Go-time COMPLETE**: After all tasks pass, before updating scratch pad. Each per-plan lesson is evaluated: promote if it's about the codebase itself, would help a fresh agent, or corrects a common assumption. Skip if it's specific to this plan's problem, already in the knowledge graph, or too narrow. Promoted entries are rewritten for generality.
+
+2. **Epic review (Step 5)**: After updating the epic's `learnings.md`, universally-applicable lessons from the sub-plan's `lessons.md` are also promoted to project-level.
+
+### Curation Strategy
+
+The project-level file must stay scannable. When it exceeds ~200 lines of content: merge redundant entries, remove entries about deleted code, keep it useful. The file is curated on every promotion, not in a separate maintenance step.
+
+### Elegance Check
+
+Added to go-time CHECKPOINTS as step e2, between diff review and read-back verification. A brief self-check: is the solution the simplest it could be, or did complexity creep in? Catches "just in case" additions, premature abstractions, and over-engineering before they stick.
+
+If the code could be simpler without losing correctness or clarity, simplify it now. Re-run lint and tests after any simplification. The checkpoint report includes the elegance check result.
+
+### Relationship to Epic Learnings
+
+The lessons system and epic `learnings.md` are complementary, not overlapping:
+
+- **Epic `learnings.md`**: Carries context within an epic -- architecture decisions locked in by earlier sub-plans, assumptions proved wrong, patterns established for consistency across sub-plans. Focused on the epic's initiative.
+- **Per-plan `lessons.md`**: Captures corrections and discoveries during a single plan's lifecycle. Raw material that feeds both epic learnings and project-level lessons.
+- **Project-level `lessons.md`**: Generalized insights applicable across all plans regardless of epic membership. The broadest scope.
+
+Epic reviews consider both: sub-plan lessons that are epic-specific go into `learnings.md`, while universally-applicable ones go to project-level `lessons.md`.
+
+---
+
 ## Future Considerations
 
 ### Depth Levels
@@ -691,6 +754,16 @@ The file-based approach provides autocompact resilience. When context is compact
 4. Agent can read state to understand what's done and what's next
 
 This is a strong argument for file-based workflows over pure conversation state. Progress tracking makes this explicit rather than relying on implicit file existence checks.
+
+### No Bash for File Modifications
+
+Agents (both orchestrators and subagents) must use the Edit and Write tools for all file modifications. Bash is restricted to git commands and running project tools (linters, test runners).
+
+**The problem**: During `update-knowledge repair` with legacy migration, the orchestrator and subagents were using Bash for-loops and sed commands to batch-update `_discovery.json` entries and module frontmatter. Every Bash command triggers a permission prompt in Claude Code that requires manual user approval. With 80+ modules to classify, the user had to press Enter 80-90 times every 20 minutes -- making it impossible to run unattended.
+
+**Why Edit/Write are different**: Claude Code auto-approves Edit and Write tool calls for project files without requiring manual confirmation. Bash commands go through a stricter permission flow because they can execute arbitrary shell commands. By ensuring all file modifications go through Edit/Write, the entire knowledge indexing and repair pipeline can run unattended.
+
+**Where enforced**: A NON-NEGOTIABLE rule at the top of both `create-knowledge` and `update-knowledge` skills, plus a `## CRITICAL` section in every subagent prompt template. Both layers are needed because the orchestrator can also make this mistake, and subagents don't read the skill's top-level rules.
 
 ### Parallel vs Linear Subagents
 

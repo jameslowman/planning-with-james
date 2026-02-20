@@ -425,6 +425,7 @@ Read ALL of these files from the completed sub-plan's folder:
 - `approach.md` - What approach was chosen and why
 - `detailed_plan.md` - What was planned
 - `tasks.md` - What was actually done (checked off items, any added/skipped tasks)
+- `lessons.md` - Corrections and discoveries captured during planning and implementation
 
 Also read:
 - The epic's current `learnings.md`
@@ -444,7 +445,7 @@ completed work. Think of yourself as a historian writing for someone who has
 zero memory of what happened.
 
 ## Read These Files First:
-{list all files from Step 2}
+{list all files from Step 2, including {sub_plan_folder}/lessons.md}
 
 ## Current Epic Learnings:
 {paste or reference learnings.md}
@@ -453,6 +454,11 @@ zero memory of what happened.
 {paste the outlines of remaining sub-plans}
 
 ## Your Task:
+
+Also consider whether any per-plan lessons should be promoted to the project-level
+`.claude/planning-with-james/lessons.md` in addition to the epic's `learnings.md`.
+Lessons about the codebase itself (not the epic's specific problem) belong at the
+project level.
 
 Write TWO documents:
 
@@ -514,6 +520,8 @@ Read the current `learnings.md`, then append the new entries from the synthesis 
 - Specific and actionable (not vague observations)
 - Contextualized (why does this matter for future work)
 - Concise (one paragraph max per entry)
+
+**Promote universally-applicable lessons to project level**: After updating the epic's `learnings.md`, also check `{sub_plan_folder}/lessons.md` for entries that are about the codebase itself (not specific to the epic's problem). Promote these to `.claude/planning-with-james/lessons.md` using the same promotion logic as go-time COMPLETE (create the file with initial structure if it doesn't exist, categorize into Patterns & Conventions / Mistakes to Avoid / What Works Well, curate if over ~200 lines).
 
 ## Step 6: Re-evaluate Remaining Sub-Plans
 

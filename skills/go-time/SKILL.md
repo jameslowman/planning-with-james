@@ -220,6 +220,13 @@ Read `{plan_folder}/detailed_plan.md` - specifically the section that covers the
 
 Know: exact files to modify, code patterns to follow, edge cases to handle.
 
+### 5. Lessons
+Read `{plan_folder}/lessons.md`
+
+Know: corrections made during planning, discoveries, patterns that worked, mistakes to avoid.
+
+On first orient of the session (no prior tasks completed), also read `.claude/planning-with-james/lessons.md` if it exists for project-level patterns and known mistakes.
+
 ## If resuming after a break:
 
 If tasks are already checked off but you don't have memory of doing them:
@@ -347,6 +354,7 @@ After each task, briefly assess:
 | Minor surprise but no plan change needed? | Note in scratch pad, continue |
 | Discovered a missing step? | Add task to tasks.md, note in scratch pad, continue |
 | Task turned out to be unnecessary? | Mark as skipped `- [~]` with note, continue |
+| Discovered something unexpected about the codebase? | Note in scratch pad AND write to lessons.md (Discoveries), continue |
 | Approach seems wrong? | **STOP. Tell user. Do not continue.** |
 | Tests reveal a design flaw? | **STOP. Tell user. Do not continue.** |
 | Something contradicts the plan? | **STOP. Tell user. Do not continue.** |
@@ -389,6 +397,15 @@ Run `git diff` and review the changes against what the plan specified:
 - Did we miss any files the plan mentioned?
 - Do the changes match the plan's intent?
 
+**e2. Elegance check**
+Review the implementation from this phase with fresh eyes:
+- Is the solution the simplest it could be, or did complexity creep in?
+- Are there any "just in case" additions that should be removed?
+- Could any function or block be replaced by something more direct?
+- Did we introduce any premature abstractions?
+
+If the code could be simpler without losing correctness or clarity, simplify it now. If changes are made, re-run lint and tests before proceeding.
+
 **f. Read-back verification**
 Re-read each changed file. Does the code make sense in context? A 30-second re-read catches mistakes that are obvious in hindsight.
 
@@ -425,6 +442,9 @@ Quality gate:
   [PASS] Type check
   [PASS] No debug residue
   [PASS] Diff matches plan
+  [PASS] Elegance check (simplified 2 functions / no changes needed)
+
+Lessons captured: {count, or "none"}
 
 Verification:
   [PASS] {domain check 1}
@@ -495,7 +515,48 @@ Tasks completed: {N}/{total}
 Tasks skipped: {M} (with reasons noted in scratch pad)
 ```
 
-3. Update `context_scratch_pad.md`:
+3. Promote lessons to project level
+
+   1. Read `{plan_folder}/lessons.md`
+   2. If no entries, skip promotion
+   3. Read `.claude/planning-with-james/lessons.md` (create with initial structure if it doesn't exist -- see below)
+   4. For each per-plan lesson, decide: is this reusable across plans?
+      - Promote if: it's about the codebase itself, would help a fresh agent, corrects a common assumption
+      - Skip if: it's specific to this plan's problem, already in the knowledge graph, too narrow
+   5. Rewrite promoted entries for generality (remove plan-specific references)
+   6. Categorize into project-level sections: Patterns & Conventions, Mistakes to Avoid, What Works Well
+   7. Append to appropriate sections
+   8. If project-level file exceeds ~200 lines of content: curate -- merge redundant entries, remove entries about deleted code, keep it scannable
+   9. Update frontmatter (last_updated, entries count)
+   10. Include in completion report: "Promoted {N} lessons to project-level."
+
+   **Project-level `lessons.md` initial structure** (created lazily on first promotion):
+
+   ```markdown
+   ---
+   last_updated: "{timestamp}"
+   entries: 0
+   ---
+
+   # Project Lessons
+
+   Accumulated lessons from all plans. Read before starting any new plan.
+   Keep curated -- remove entries that are no longer relevant.
+
+   ## Patterns & Conventions
+
+   (Patterns discovered that plans should follow)
+
+   ## Mistakes to Avoid
+
+   (Approaches that failed or caused problems)
+
+   ## What Works Well
+
+   (Techniques that proved effective)
+   ```
+
+4. Update `context_scratch_pad.md`:
 ```markdown
 ## Current State
 - **Status**: COMPLETED
@@ -506,15 +567,15 @@ Tasks skipped: {M} (with reasons noted in scratch pad)
 {Brief summary of everything that was implemented}
 ```
 
-4. Update `_plan_state.json`:
+5. Update `_plan_state.json`:
    - `implementation_status`: `"completed"`
 
-5. Update `_registry.json`:
+6. Update `_registry.json`:
    - Remove `sessions["$CLAUDE_SESSION_ID"]` entry
    - Clear `locked_by_session` and `locked_at` on the plan
    - Set plan status to `"completed"`
 
-6. Ask user if they want to create a commit or PR.
+7. Ask user if they want to create a commit or PR.
 
 ---
 

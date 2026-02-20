@@ -189,7 +189,8 @@ Create the plan folder with all template files:
 ├── findings_summary.md        # Phase 3 synthesis
 ├── approach.md                # Phase 4 output
 ├── detailed_plan.md           # Phase 5 output
-└── tasks.md                   # Phase 6 output
+├── tasks.md                   # Phase 6 output
+└── lessons.md                 # Lessons captured during planning/implementation
 ```
 
 ## Step 7: Initialize Plan State
@@ -284,6 +285,8 @@ Read internal planning guidance (these inform your behavior but aren't shown to 
 - What makes a good problem description
 - Discovery strategies
 - Plan structure best practices
+
+**Load project-level lessons**: Read `.claude/planning-with-james/lessons.md` if it exists. These are accumulated lessons from previous plans -- patterns, mistakes to avoid, and techniques that worked. Use them to inform scoping, discovery, and approach phases.
 
 Now proceed to Phase 1.
 
@@ -505,6 +508,8 @@ Present your scope assessment and invite the user to correct or expand it:
 **If user has changes**: Incorporate, re-present scope, get confirmation
 **If scope seems fundamentally wrong**: May need to loop back to Phase 1
 
+**Lesson capture**: If the user's feedback contained a correction to your assumptions, a reusable codebase insight, or context about what has failed before, add an entry to `{plan_folder}/lessons.md` under the appropriate section. Keep entries to 2-3 sentences with enough context to be useful in isolation. Not every correction is a lesson -- only capture insights that would help a fresh agent on a different plan.
+
 ---
 
 # PHASE 3: DISCOVERY
@@ -544,6 +549,11 @@ Focus: {specific investigation goals}
 
 ## Known Unknowns to Investigate
 {From scope.md}
+
+## Project-Level Lessons
+{If .claude/planning-with-james/lessons.md exists and mentions any of the modules
+being investigated, include those specific entries here. These are accumulated
+insights from previous plans that may affect how you investigate these modules.}
 
 ## Your Task
 
@@ -698,6 +708,8 @@ Present your discovery findings and validate them with the user:
 **If user wants deeper investigation**: Spawn targeted subagents for specific areas
 **If findings fundamentally change scope**: May need to revisit Phase 2
 
+**Lesson capture**: If the user's feedback contained a correction to your assumptions, a reusable codebase insight, or context about what has failed before, add an entry to `{plan_folder}/lessons.md` under the appropriate section. Keep entries to 2-3 sentences with enough context to be useful in isolation. Not every correction is a lesson -- only capture insights that would help a fresh agent on a different plan.
+
 ---
 
 # PHASE 4: APPROACH
@@ -826,6 +838,8 @@ Present your approach analysis and get the user's input:
 **If user prefers different option**: Update approach.md, confirm, proceed
 **If user suggests new approach**: Evaluate it, update approach.md, confirm, proceed
 **If new information changes the calculus**: May need to revisit discovery
+
+**Lesson capture**: If the user's feedback contained a correction to your assumptions, a reusable codebase insight, or context about what has failed before, add an entry to `{plan_folder}/lessons.md` under the appropriate section. Keep entries to 2-3 sentences with enough context to be useful in isolation. Not every correction is a lesson -- only capture insights that would help a fresh agent on a different plan.
 
 ---
 
@@ -969,6 +983,8 @@ Present the detailed plan and invite feedback:
 **If user has feedback**: Incorporate into detailed_plan.md, re-present key changes, confirm
 **If plan has fundamental issues**: May need to revisit approach
 
+**Lesson capture**: If the user's feedback contained a correction to your assumptions, a reusable codebase insight, or context about what has failed before, add an entry to `{plan_folder}/lessons.md` under the appropriate section. Keep entries to 2-3 sentences with enough context to be useful in isolation. Not every correction is a lesson -- only capture insights that would help a fresh agent on a different plan.
+
 ---
 
 # PHASE 6: TASK BREAKDOWN
@@ -1079,6 +1095,8 @@ Always present the task breakdown to the user. This is the last chance to adjust
 **If user approves**: Proceed to Phase 7
 **If user has feedback**: Adjust tasks, re-checkpoint
 
+**Lesson capture**: If the user's feedback contained a correction to your assumptions, a reusable codebase insight, or context about what has failed before, add an entry to `{plan_folder}/lessons.md` under the appropriate section. Keep entries to 2-3 sentences with enough context to be useful in isolation. Not every correction is a lesson -- only capture insights that would help a fresh agent on a different plan.
+
 ---
 
 # PHASE 7: FINALIZE
@@ -1120,6 +1138,7 @@ last_updated: {timestamp}
 - [x] approach.md - Complete
 - [x] detailed_plan.md - Complete
 - [x] tasks.md - Complete
+- [x] lessons.md - Complete (captures from planning checkpoints)
 
 ## Key Decisions
 

@@ -19,6 +19,9 @@ The orchestrator (you) should hold minimal state. Do NOT read all module `_index
 **NON-NEGOTIABLE: LINEAR EXECUTION**
 Process modules ONE AT A TIME. Do NOT launch parallel subagents for module updates. Each module update should: spawn agent -> receive brief summary -> update progress -> next. This prevents context exhaustion.
 
+**NON-NEGOTIABLE: NO BASH FOR FILE MODIFICATIONS**
+Do NOT use Bash to modify knowledge files. No `sed`, `awk`, `for` loops, `echo` redirection, or `cat` heredocs for writing or editing files. ALWAYS use the Read → Edit or Read → Write tools for file changes. Bash is ONLY permitted for: `git` commands (`git diff`, `git rev-parse`, `git log`) and running project tools (linters, test runners). This applies to you (the orchestrator) AND to all subagents you spawn — include this rule in every subagent prompt. Violating this blocks unattended operation with permission prompts that require manual approval.
+
 ---
 
 ## Step 0: Route by Argument
@@ -116,6 +119,9 @@ git diff --name-status {from_commit}..{to_commit} -- {module_path}
 ```
 You are updating knowledge for the "{module_name}" module at "{module_path}".
 
+## CRITICAL: No Bash for file modifications
+Use the Edit and Write tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to modify files. Bash is only for git commands.
+
 ## MANDATORY: Read Existing Knowledge First
 
 Before reading ANY source code:
@@ -177,6 +183,9 @@ For each entry in `new_modules_to_create`, spawn ONE agent at a time:
 ```
 You are creating knowledge for a NEW module discovered at "{path}".
 
+## CRITICAL: No Bash for file modifications
+Use the Edit and Write tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to modify files. Bash is only for git commands.
+
 ## Context
 This directory appeared in recent commits and doesn't have existing knowledge documentation.
 
@@ -237,6 +246,9 @@ Spawn ONE Task agent:
 ```
 You are verifying knowledge for "{module_name}" because a connected module changed.
 
+## CRITICAL: No Bash for file modifications
+Use the Edit and Write tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to modify files. Bash is only for git commands.
+
 ## MANDATORY: Read Existing Knowledge First
 1. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_index.md
 2. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_refs.json
@@ -264,6 +276,9 @@ Spawn ONE Task agent:
 
 ```
 You are rebuilding the knowledge graph after updates.
+
+## CRITICAL: No Bash for file modifications
+Use the Edit and Write tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to modify files.
 
 ## Your Task
 1. Read ALL _refs.json files from .claude/planning-with-james/knowledge/modules/*/
@@ -384,6 +399,9 @@ For each target module, spawn ONE Task agent with appropriate prompt based on in
 ```
 You are doing a DEEP DIVE on "{module_name}" at "{module_path}".
 
+## CRITICAL: No Bash for file modifications
+Use the Edit and Write tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to modify files. Bash is only for git commands.
+
 ## MANDATORY: Start From Existing Knowledge
 1. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_index.md
 2. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_refs.json
@@ -427,6 +445,9 @@ For cross-cutting requests (pipelines, flows), process each module in the flow O
 ```
 You are doing a DEEP DIVE on "{module_name}" as part of a cross-cutting exploration of the "{pipeline_name}".
 
+## CRITICAL: No Bash for file modifications
+Use the Edit and Write tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to modify files. Bash is only for git commands.
+
 ## MANDATORY: Start From Existing Knowledge
 1. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_index.md
 2. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_refs.json
@@ -463,6 +484,9 @@ After ALL pipeline modules complete, spawn ONE MORE agent to create a flow docum
 
 ```
 You are creating a cross-cutting flow document for "{pipeline_name}".
+
+## CRITICAL: No Bash for file modifications
+Use the Edit and Write tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to modify files.
 
 ## Your Task
 1. Read the updated _index.md for each module: {list}
@@ -693,12 +717,15 @@ Update `_discovery.json` after each fix. Update progress file.
 
 When Check 7 detected modules without `module_type` fields ("Legacy format"), run a full classification pass to upgrade the flat knowledge graph to hierarchical format:
 
-1. Add `module_type: "pending"`, `parent: null`, `children: []` to ALL modules in `_discovery.json` that lack these fields.
+1. Read `_discovery.json` with the Read tool. For each module missing `module_type`/`parent`/`children` fields, add `module_type: "pending"`, `parent: null`, `children: []`. Write the updated JSON back with the Write tool. Do NOT use Bash for this — use Read → modify → Write.
 
 2. For each module, spawn ONE classification agent (linear, one at a time):
 
 ```
 You are classifying the "{module_name}" module at "{module_path}" as LEAF or CONTAINER.
+
+## CRITICAL: No Bash for file modifications
+Use the Edit and Write tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to modify files. Bash is only for git commands.
 
 ## MANDATORY: Read Existing Knowledge First
 1. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_index.md
@@ -714,11 +741,11 @@ Then read the source code at {module_path}.
 
 ## If LEAF
 - Existing documentation is preserved as-is
-- Add `module_type: leaf` and `parent: {parent_id or null}` to _index.md frontmatter
+- Use the Edit tool to add `module_type: leaf` and `parent: {parent_id or null}` to _index.md frontmatter
 - Return: {"module_id": "{module_id}", "type": "leaf"}
 
 ## If CONTAINER
-- Rewrite _index.md to lighter container format:
+- Use the Edit tool to rewrite _index.md to lighter container format:
   - Keep: module_id, module_name, path, last_updated, last_commit, external_refs, keywords
   - Add: module_type: container, parent: {parent_id or null}, children: []
   - Replace detailed sections with: Overview, Children list, Shared Patterns, Common Interface

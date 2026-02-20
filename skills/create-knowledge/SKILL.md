@@ -13,6 +13,9 @@ All `.claude/planning-with-james/` paths in this skill are relative to the **cur
 **NON-NEGOTIABLE: PROGRESS TRACKING**
 After each phase completes, you MUST update `_create_progress.json` BEFORE starting the next phase. This file enables resume after context loss. If autocompact hits mid-creation, re-invoking this skill will pick up where you left off.
 
+**NON-NEGOTIABLE: NO BASH FOR FILE MODIFICATIONS**
+Do NOT use Bash to modify knowledge files. No `sed`, `awk`, `for` loops, `echo` redirection, or `cat` heredocs for writing or editing files. ALWAYS use the Read → Edit or Read → Write tools for file changes. Bash is ONLY permitted for: `git` commands (`git diff`, `git rev-parse`, `git log`) and running project tools (linters, test runners). This applies to you (the orchestrator) AND to all subagents you spawn — include this rule in every subagent prompt. Violating this blocks unattended operation with permission prompts that require manual approval.
+
 You are about to create a comprehensive knowledge base for this codebase. This is a multi-phase process that will deeply analyze the code and create a navigable knowledge graph.
 
 ## Step 0: Resume Detection
@@ -160,6 +163,9 @@ You are analyzing the "{module_name}" module located at "{module_path}".
 {if parent: "This is a child of the '{parent_name}' container module."}
 
 Your task is to create documentation for this module AND decide whether it is a LEAF or CONTAINER.
+
+## CRITICAL: No Bash for file modifications
+Use the Write tool to create files and the Edit tool to modify files. Do NOT use Bash commands (sed, awk, for loops, echo) to create or modify files. Bash is only for git commands.
 
 ## Investigation Steps
 
@@ -330,6 +336,8 @@ When no modules have `module_type: "pending"`, Phase 2 is done. Update progress:
 Now spawn subagents to map the relationships between modules.
 
 Launch a SINGLE Task agent with `subagent_type`: "Explore" to:
+
+**CRITICAL**: Include in the agent prompt: "Use the Write and Edit tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to create or modify files. Bash is only for git commands."
 
 1. Read all `_refs.json` files from each module
 2. Read `_discovery.json` to get the module hierarchy (parent/children relationships)
