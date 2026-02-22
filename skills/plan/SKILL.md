@@ -521,8 +521,9 @@ Present your scope assessment and invite the user to correct or expand it:
 Based on `scope.md`, identify discovery areas. For each area, spawn a Task agent:
 - `subagent_type`: "general-purpose" (NOT "Explore" — Explore agents cannot write files)
 - `model`: "opus"
+- `run_in_background`: true
 
-**Launch in parallel** (single message with multiple Task tool calls).
+**Launch ALL discovery agents in a SINGLE message** with multiple Task tool calls. All agents run in the background — do NOT use TaskOutput to read their results. Agents write their results to disk.
 
 ## Step 2: Discovery Subagent Prompt Template
 
@@ -602,12 +603,36 @@ investigated_at: {timestamp}
 {Things that need more investigation or user input}
 ```
 
+5. After writing findings, write a result file to signal completion:
+   {plan_folder}/findings/{area_name}_result.json
+
+```json
+{"area": "{area_name}", "modules": ["{module-ids}"], "summary": "One sentence summary of key findings"}
+```
+
+This file signals to the orchestrator that you are done. Do NOT skip this step.
+
 Be thorough. Note specific file paths and line numbers.
 ```
 
+## Step 2b: Wait for Discovery Agents
+
+After launching all agents, wait for them to complete by polling for result files:
+
+```bash
+EXPECTED={number of discovery areas}; TIMEOUT=1200; ELAPSED=0
+while [ $(find "{plan_folder}/findings" -name "*_result.json" 2>/dev/null | wc -l) -lt $EXPECTED ] && [ $ELAPSED -lt $TIMEOUT ]; do
+  sleep 15; ELAPSED=$((ELAPSED + 15))
+done
+```
+
+This blocks with zero context cost. When it returns, use Glob to find all `findings/*_result.json` files and Read each one to verify all areas completed. If any agents failed (missing result file after timeout), re-launch just those.
+
+Delete the `*_result.json` files after confirming all findings are written.
+
 ## Step 3: Synthesize Findings
 
-After all subagents complete, spawn ONE synthesis agent (`subagent_type`: "general-purpose", `model`: "opus"):
+After all discovery agents have completed (confirmed by result files), spawn ONE synthesis agent (`subagent_type`: "general-purpose", `model`: "opus"):
 
 ```
 You are synthesizing discovery findings for the "{plan_name}" plan.

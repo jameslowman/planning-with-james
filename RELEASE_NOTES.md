@@ -1,5 +1,17 @@
 # Release Notes
 
+## v2.1.2
+
+### Fix: Context exhaustion from parallel subagents
+
+After switching subagents to `general-purpose` in v2.1.1, their richer output overwhelmed the orchestrator's context window when many agents ran in parallel (e.g., 28 modules in a single wave). The main context hit its limit before autocompact could even run.
+
+**Fixed**: Subagents now run in the background (`run_in_background: true`) and write a small `_result.json` file to disk when done. The orchestrator polls for these files with a single Bash wait loop (20-minute timeout) — zero context cost while waiting. Results are read from disk only after all agents finish.
+
+**Affected skills**: `create-knowledge` (Phase 2 wave agents), `plan` (Phase 3 discovery agents).
+
+---
+
 ## v2.1.1
 
 ### Bug Fix: Subagents couldn't write files

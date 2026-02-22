@@ -139,22 +139,43 @@ Phase 2 classifies each module as LEAF (cohesive unit → full documentation) or
 ```
 while there are modules with module_type: "pending" in _discovery.json:
   1. Collect all pending modules
-  2. Launch parallel agents for ALL pending modules (one agent per module)
-  3. Process results:
+  2. Launch ALL pending modules as background agents (fire-and-forget)
+  3. Wait for all agents to finish by polling for _result.json files on disk
+  4. Read each _result.json and process:
      - LEAF: mark as classified, verify files written
      - CONTAINER: mark as classified, add children as new pending modules
-  4. Update _discovery.json with results
-  5. Update _create_progress.json (increment current_wave, update modules_classified)
-  6. Next wave
+  5. Re-launch any agents that failed (missing _result.json after timeout)
+  6. Delete _result.json files after processing
+  7. Update _discovery.json with results
+  8. Update _create_progress.json (increment current_wave, update modules_classified)
+  9. Next wave
 ```
 
-### Subagent Prompt
+### Subagent Launch
 
 For EACH pending module, spawn a Task agent with:
 - `subagent_type`: "general-purpose" (NOT "Explore" — Explore agents cannot write files)
 - `model`: "opus" (we want maximum depth)
+- `run_in_background`: true
 
-**IMPORTANT**: Launch ALL pending module subagents for the current wave in a SINGLE message with multiple Task tool calls to run them in parallel.
+**IMPORTANT**: Launch ALL pending module subagents for the current wave in a SINGLE message with multiple Task tool calls. All agents run in the background — do NOT use TaskOutput to read their results. Agents write their results to disk.
+
+### Waiting for Agents
+
+After launching all agents, wait for them to complete by polling for `_result.json` files:
+
+```bash
+EXPECTED={number of pending modules}; TIMEOUT=1200; ELAPSED=0; KNOWLEDGE=".claude/planning-with-james/knowledge"
+while [ $(find "$KNOWLEDGE/modules" -name "_result.json" -newer "$KNOWLEDGE/_create_progress.json" 2>/dev/null | wc -l) -lt $EXPECTED ] && [ $ELAPSED -lt $TIMEOUT ]; do
+  sleep 15; ELAPSED=$((ELAPSED + 15))
+done
+```
+
+This blocks with zero context cost. When it returns, use Glob to find all `modules/*/_result.json` files and Read each one. These are tiny JSON files — negligible context.
+
+**If some agents failed** (fewer `_result.json` files than expected after timeout): identify missing modules and re-launch just those, same fire-and-forget pattern with a fresh wait.
+
+### Subagent Prompt
 
 Use this prompt template (fill in the module details):
 
@@ -242,10 +263,16 @@ Use your judgment on what detail files are needed.
 }
 ```
 
-### 4. Return Value
+### 4. Write Result File
 
-Return ONLY this JSON:
+After writing all documentation files, write your classification result to:
+`.claude/planning-with-james/knowledge/modules/{module_id}/_result.json`
+
+```json
 {"module_id": "{module_id}", "type": "leaf"}
+```
+
+This file signals to the orchestrator that you are done. Do NOT skip this step.
 
 ## If CONTAINER: Create Lightweight Documentation
 
@@ -292,17 +319,23 @@ keywords: []       # Searchable terms
 }
 ```
 
-### 3. Return Value
+### 3. Write Result File
 
-Return ONLY this JSON:
+After writing all documentation files, write your classification result to:
+`.claude/planning-with-james/knowledge/modules/{module_id}/_result.json`
+
+```json
 {"module_id": "{module_id}", "type": "container", "children": [{"id": "child-slug", "name": "Child Name", "path": "path/to/child", "description": "Brief description", "type": "feature|service|library|config|infrastructure"}]}
+```
 
 Each child should be a distinct sub-domain. Use kebab-case IDs. The child path should be the directory containing that sub-domain's code.
+
+This file signals to the orchestrator that you are done. Do NOT skip this step.
 ```
 
 ### Processing Results
 
-After all agents in a wave complete:
+After the wait completes, use Glob to find all `modules/*/_result.json` files. Read each one (they are tiny). Then:
 
 1. **For each LEAF result**: Mark the module as `module_type: "leaf"` in `_discovery.json`. Add to `modules_classified` in progress file. Verify `_index.md` and `_refs.json` were written.
 
@@ -310,11 +343,14 @@ After all agents in a wave complete:
 
 3. **Update progress**: Increment `current_wave`, update `modules_classified` list, update `total_modules` count (it grows as containers produce children).
 
+4. **Cleanup**: Delete all `_result.json` files after processing (so the next wave's wait starts clean).
+
 ### Resume Handling
 
 If resuming mid-Phase 2:
+- Check for unprocessed `_result.json` files: Glob for `modules/*/_result.json`. If any exist, process them first (they are from agents that completed but whose results weren't incorporated before the interruption).
 - Read `_discovery.json` for modules with `module_type: "pending"` — these need classification
-- Check for orphaned files: modules with `_index.md` on disk but not in `modules_classified`. These are from agents that wrote files but whose results weren't recorded. Read the `_index.md` frontmatter to determine if leaf or container, and process accordingly.
+- Check for orphaned files: modules with `_index.md` on disk but no `_result.json` and not in `modules_classified`. Read the `_index.md` frontmatter to determine if leaf or container, and process accordingly.
 - Resume at the next wave with remaining pending modules
 
 ### Phase 2 Complete
