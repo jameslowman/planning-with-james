@@ -37,7 +37,7 @@ This applies to:
 - Debugging during implementation
 - Any research spawned by unexpected findings
 
-**When spawning subagents** (Task tool with Explore or other types), you MUST include in their prompt:
+**When spawning subagents** (Task tool), you MUST include in their prompt:
 ```
 BEFORE exploring source code, read these knowledge files:
 - .claude/planning-with-james/knowledge/_overview.md
@@ -519,7 +519,7 @@ Present your scope assessment and invite the user to correct or expand it:
 ## Step 1: Prepare Discovery Subagents
 
 Based on `scope.md`, identify discovery areas. For each area, spawn a Task agent:
-- `subagent_type`: "Explore"
+- `subagent_type`: "general-purpose" (NOT "Explore" — Explore agents cannot write files)
 - `model`: "opus"
 
 **Launch in parallel** (single message with multiple Task tool calls).
@@ -607,7 +607,7 @@ Be thorough. Note specific file paths and line numbers.
 
 ## Step 3: Synthesize Findings
 
-After all subagents complete, spawn ONE synthesis agent:
+After all subagents complete, spawn ONE synthesis agent (`subagent_type`: "general-purpose", `model`: "opus"):
 
 ```
 You are synthesizing discovery findings for the "{plan_name}" plan.

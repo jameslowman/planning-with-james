@@ -1,5 +1,17 @@
 # Release Notes
 
+## v2.1.1
+
+### Bug Fix: Subagents couldn't write files
+
+Subagents in `create-knowledge`, `plan`, and `epic` were spawned as `"Explore"` type, which doesn't have access to Write/Edit tools. This caused all Phase 2 deep-dive agents to fail when writing `_index.md` and `_refs.json`, triggering expensive re-launches as general-purpose agents.
+
+**Fixed**: All agents that need to write files now use `subagent_type: "general-purpose"` with `model: "opus"`. The only skill that correctly uses Explore is `dig`, where agents return findings conversationally without writing.
+
+**Affected skills**: `create-knowledge` (Phase 2 + Phase 3), `plan` (Phase 3 discovery + synthesis), `epic` (review synthesis).
+
+---
+
 ## v2.0.0
 
 ### Recursive Module Discovery

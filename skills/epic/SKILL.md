@@ -434,7 +434,7 @@ Also read:
 
 ## Step 3: Synthesize via Opus Agent
 
-Spawn a Task agent (model: opus) to synthesize the review:
+Spawn a Task agent (`subagent_type`: "general-purpose", `model`: "opus") to synthesize the review:
 
 ```
 You are conducting an EPIC REVIEW for the "{epic_name}" epic.

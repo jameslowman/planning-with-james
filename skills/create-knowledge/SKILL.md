@@ -151,7 +151,7 @@ while there are modules with module_type: "pending" in _discovery.json:
 ### Subagent Prompt
 
 For EACH pending module, spawn a Task agent with:
-- `subagent_type`: "Explore"
+- `subagent_type`: "general-purpose" (NOT "Explore" — Explore agents cannot write files)
 - `model`: "opus" (we want maximum depth)
 
 **IMPORTANT**: Launch ALL pending module subagents for the current wave in a SINGLE message with multiple Task tool calls to run them in parallel.
@@ -335,7 +335,7 @@ When no modules have `module_type: "pending"`, Phase 2 is done. Update progress:
 
 Now spawn subagents to map the relationships between modules.
 
-Launch a SINGLE Task agent with `subagent_type`: "Explore" to:
+Launch a SINGLE Task agent with `subagent_type`: "general-purpose" and `model`: "opus" to:
 
 **CRITICAL**: Include in the agent prompt: "Use the Write and Edit tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to create or modify files. Bash is only for git commands."
 
