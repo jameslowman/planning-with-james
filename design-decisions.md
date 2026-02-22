@@ -111,6 +111,8 @@ knowledge/
 
 **"When in doubt, lean LEAF"**: Over-splitting creates busywork. Under-splitting loses some granularity but the knowledge is still there -- a leaf module can document sub-areas in its prose and detail files. The cost of a false container (spawning extra agents, managing extra hierarchy) is higher than the cost of a false leaf (slightly less granular module boundaries).
 
+**Layer-Organized vs Domain-Organized Codebases**: The original LEAF/CONTAINER heuristic worked well for domain-organized code (Python backends with `auth/`, `parsers/`, `rfq/`) but produced false LEAFs for large frontend applications. Frontend codebases typically organize by technical layer first (`components/`, `pages/`, `hooks/`, `utils/`) with domain boundaries one level deeper (`pages/quotes/`, `pages/crm/`, `components/shipments/`). The Phase 2 agent would see layer directories, classify them as "implementation details, not separate domains," and mark the entire app as a LEAF -- even when it contained hundreds of files spanning many distinct business domains. The fix: explicit guidance in the subagent prompt to look *inside* layer-based directories for domain boundaries, and a size signal (50+ files) that triggers more careful scrutiny before classifying as LEAF. The split should be by domain (quotes, crm, shipments), not by layer (pages, components, hooks).
+
 **How Waves Work**:
 - **Wave 0**: Phase 1 identifies top-level modules, all marked `module_type: "pending"`
 - **Wave 1**: Parallel agents classify each pending module. Leaves write full docs. Containers write lightweight docs and return children.

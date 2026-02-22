@@ -200,6 +200,10 @@ Use the Write tool to create files and the Edit tool to modify files. Do NOT use
 
 **When in doubt, lean LEAF.** Over-splitting creates busywork. A leaf module can document sub-areas in its prose and detail files. Only classify as CONTAINER when the sub-domains are genuinely distinct.
 
+**Watch for hidden domains in layer-organized code.** Some codebases (especially frontends like Next.js, React, Vue) organize by technical layer first (components/, pages/, hooks/, utils/, lib/) rather than by domain. If the top-level sub-directories are layer-based, look INSIDE them for domain boundaries. A pages/ directory containing quotes/, crm/, shipments/, analytics/ has distinct business domains — the layer organization doesn't make them "implementation details." If the module contains multiple distinct business domains organized under technical layers, classify as CONTAINER and split by domain (not by layer). For example, a Next.js app with pages for quoting, CRM, shipments, and settings should split into domain-based children (quotes, crm, shipments, settings), not layer-based children (pages, components, hooks).
+
+**Size is a signal.** If a module has 50+ files or spans many distinct features/workflows, scrutinize more carefully before classifying as LEAF. Large modules with multiple independent feature areas are likely CONTAINERs even if they share a framework or entry point.
+
 ## If LEAF: Create Full Documentation
 
 ### 1. Module Index: `.claude/planning-with-james/knowledge/modules/{module_id}/_index.md`
