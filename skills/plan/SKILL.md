@@ -522,6 +522,7 @@ Based on `scope.md`, identify discovery areas. For each area, spawn a Task agent
 - `subagent_type`: "general-purpose" (NOT "Explore" — Explore agents cannot write files)
 - `model`: "opus"
 - `run_in_background`: true
+- `max_turns`: 30 (background agents need enough turns to read files AND write results)
 
 **Launch ALL discovery agents in a SINGLE message** with multiple Task tool calls. All agents run in the background — do NOT use TaskOutput to read their results. Agents write their results to disk.
 

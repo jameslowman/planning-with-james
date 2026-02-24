@@ -1,5 +1,17 @@
 # Release Notes
 
+## v2.1.4
+
+### Fix: Background subagents exhausting turns before writing files
+
+Background agents launched in v2.1.2 had no `max_turns` specified. Deep research agents (Opus) would consume their entire default turn budget reading knowledge files and source code, then "complete" without ever reaching the Write tool calls for findings and result files. The orchestrator's polling loop would time out finding 0 result files.
+
+**Fixed**: All background Task agent launches now specify `max_turns: 30`, giving agents enough headroom to read files AND write results.
+
+**Affected skills**: `create-knowledge` (Phase 2 wave agents), `plan` (Phase 3 discovery agents).
+
+---
+
 ## v2.1.2
 
 ### Fix: Context exhaustion from parallel subagents

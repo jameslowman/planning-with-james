@@ -157,6 +157,7 @@ For EACH pending module, spawn a Task agent with:
 - `subagent_type`: "general-purpose" (NOT "Explore" — Explore agents cannot write files)
 - `model`: "opus" (we want maximum depth)
 - `run_in_background`: true
+- `max_turns`: 30 (background agents need enough turns to read files AND write results)
 
 **IMPORTANT**: Launch ALL pending module subagents for the current wave in a SINGLE message with multiple Task tool calls. All agents run in the background — do NOT use TaskOutput to read their results. Agents write their results to disk.
 

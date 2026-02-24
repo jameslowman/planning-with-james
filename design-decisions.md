@@ -547,6 +547,12 @@ Three contributing factors:
 
 But it now has progress tracking for resilience. If interrupted, the resume logic checks which modules already have `_index.md` files and only processes the missing ones.
 
+### Background Agents Need Explicit Turn Budgets
+
+When v2.1.2 switched subagents to `run_in_background: true`, no `max_turns` was specified. Background agents default to a turn budget that's insufficient for deep research tasks. An Opus agent reading multiple knowledge files, then source files, then analyzing patterns can easily consume 15-20 turns before reaching the Write tool calls for findings and result files. The agent "completes" (hits its turn limit) with research done but no files written -- the orchestrator's polling loop times out finding 0 result files.
+
+The fix: explicitly set `max_turns: 30` on all background Task agent launches. This gives agents enough headroom to read extensively AND write their output files. The affected launches are `create-knowledge` Phase 2 (deep dive agents) and `plan` Phase 3 (discovery agents).
+
 ### Verify and Repair
 
 The verify/repair modes provide ongoing knowledge maintenance:
