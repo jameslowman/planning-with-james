@@ -1,5 +1,34 @@
 # Release Notes
 
+## v3.0.0
+
+### New: Test-First Architecture
+
+Planning now includes a dedicated Test Architecture phase that maps user flows to concrete test scenarios *before* any implementation begins. Tests are described in plain English so users can review and co-author them.
+
+**What changed:**
+
+- **Phase 1 (Context Gathering)**: New structured questioning extracts step-by-step user flows — reproduction steps for bugs, user journeys for features. These are stored in a new "User Flows" section of `problem_description.md`. For bugs, at least one concrete flow is required.
+
+- **Phase 4 (Test Architecture)** — NEW PHASE: Three parallel background agents investigate the test landscape:
+  1. **Test Infrastructure**: framework, fixtures, mocking patterns, CI config
+  2. **Existing Coverage**: what tests exist, why they don't catch this bug
+  3. **Mock Boundaries**: traces user flows through code paths, recommends where to mock
+
+  For hard-to-track bugs, additional investigation agents are launched. Output is `test_plan.md` — every test described in plain English with setup, action, assertion, and mock boundary.
+
+- **Phase 7 (Task Breakdown)**: Phase 1 of every task list is now "Test Foundation" — writing all tests from `test_plan.md` before implementation. For bugs, the checkpoint verifies tests *fail* (proving the bug is captured).
+
+- **User preferences**: New `.claude/planning-with-james/config.json` supports `test_preference` (`"mock"` / `"integration"` / `"mixed"`, default `"mock"`) and `test_first` (default `true`).
+
+- **Phase renumbering**: Phases 4-7 are now 5-8. The planning system has 9 phases (0-8).
+
+**New template**: `test_plan.md` — plain English test scenarios with mock strategy, gap analysis, and file locations.
+
+**Affected skills**: `plan` (major — new phase, enhanced Phase 1, updated task breakdown), `go-time` (minor — ORIENT reads test_plan.md for test tasks, checkpoints verify test-first compliance).
+
+---
+
 ## v2.1.4
 
 ### Fix: Background subagents exhausting turns before writing files

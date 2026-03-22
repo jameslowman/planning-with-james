@@ -26,6 +26,7 @@ This document maintains continuity across sessions. **If you're resuming after a
 - [ ] scope.md - Not started
 - [ ] findings/ - Not started
 - [ ] findings_summary.md - Not started
+- [ ] test_plan.md - Not started
 - [ ] approach.md - Not started
 - [ ] detailed_plan.md - Not started
 - [ ] tasks.md - Not started

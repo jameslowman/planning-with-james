@@ -306,14 +306,15 @@ keywords: [oauth, jwt, session]
 The planning skill guides users through a structured 7-phase process:
 
 ```
-Phase 0: Setup           → Create folder, copy templates, register plan
-Phase 1: Context         → Gather problem description from user
-Phase 2: Scoping         → Identify modules, set boundaries (knowledge-first)
-Phase 3: Discovery       → Parallel deep exploration (Opus subagents)
-Phase 4: Approach        → Decide on technical direction
-Phase 5: Detailed Plan   → Full implementation specification
-Phase 6: Task Breakdown  → Executable checklist with dependencies
-Phase 7: Finalize        → Cold start doc ready for implementation
+Phase 0: Setup              → Create folder, copy templates, register plan
+Phase 1: Context            → Gather problem description and user flows
+Phase 2: Scoping            → Identify modules, set boundaries (knowledge-first)
+Phase 3: Discovery          → Parallel deep exploration (Opus subagents)
+Phase 4: Test Architecture  → Map user flows to test scenarios
+Phase 5: Approach           → Decide on technical direction
+Phase 6: Detailed Plan      → Full implementation specification
+Phase 7: Task Breakdown     → Executable checklist with dependencies
+Phase 8: Finalize           → Cold start doc ready for implementation
 ```
 
 ### Key Design Decisions
@@ -322,12 +323,13 @@ Phase 7: Finalize        → Cold start doc ready for implementation
 Every phase has a checkpoint, and they all present findings and invite discussion. The point of planning is the conversation -- drawing context out of the user that isn't visible in code.
 
 The system always stops at:
-- Phase 1 (problem description) - Verify understanding
+- Phase 1 (problem description + user flows) - Verify understanding
 - Phase 2 (scoping) - "What modules should I consider? What constraints?"
 - Phase 3 (discovery) - "Does this match your understanding? Is this data correct?"
-- Phase 4 (approach) - "Do you see a better way? Any constraints I should know?"
-- Phase 5 (detailed plan) - "Any concerns before I break this into tasks?"
-- Phase 6 (task breakdown) - Last chance before implementation
+- Phase 4 (test architecture) - "Do these test scenarios capture the behavior you described?"
+- Phase 5 (approach) - "Do you see a better way? Any constraints I should know?"
+- Phase 6 (detailed plan) - "Any concerns before I break this into tasks?"
+- Phase 7 (task breakdown) - Last chance before implementation
 
 **Why not auto-advance?** Initial designs allowed auto-advancing through phases when "scope was obvious" or "only one approach existed." In practice, this led to:
 1. Discovery agents reporting wrong data (stale timing numbers) that went uncorrected
@@ -390,7 +392,7 @@ planning → planned → active ⇄ paused → completed
 | State | Meaning | Who sets it |
 |-------|---------|-------------|
 | `planning` | Still in planning phases | `/plan` skill |
-| `planned` | Planning complete, ready for implementation | `/plan` skill (Phase 7) |
+| `planned` | Planning complete, ready for implementation | `/plan` skill (Phase 8) |
 | `active` | Currently being implemented | `/go-time` on activation |
 | `paused` | Implementation paused, safe to do other work | `/go-time pause` or user request |
 | `completed` | All tasks done | `/go-time` when final checklist passes |
@@ -735,6 +737,121 @@ The lessons system and epic `learnings.md` are complementary, not overlapping:
 - **Project-level `lessons.md`**: Generalized insights applicable across all plans regardless of epic membership. The broadest scope.
 
 Epic reviews consider both: sub-plan lessons that are epic-specific go into `learnings.md`, while universally-applicable ones go to project-level `lessons.md`.
+
+---
+
+## Test-First Architecture
+
+### Why Test-First
+
+The planning system produced great plans, but testing was an afterthought -- a small table in `detailed_plan.md` and some tasks tacked onto the end of `tasks.md`. This led to:
+
+1. Tests written after implementation confirmed the code worked as written, not that it solved the original problem
+2. For bugs, no verification that the fix actually addressed the user's reported behavior
+3. Mock boundaries decided ad-hoc during implementation instead of deliberately during planning
+4. Existing test gaps went unanalyzed -- nobody asked "why don't the current tests catch this?"
+
+The fix: make testing a first-class planning phase that produces a user-reviewable document before implementation begins.
+
+### Two-Part Design
+
+**Part 1: User Flow Extraction (Phase 1 Enhancement)**
+
+Phase 1 (Context Gathering) now includes structured questioning to extract step-by-step user flows. These are plain English sequences like:
+
+```
+1. User opens email in RFQ
+2. User sees no un-validated addresses
+3. User clicks "Source Rates" button
+4. Expected: button is active, rate sourcing begins
+5. Actual: button is greyed out, no action possible
+```
+
+For bugs, at least one flow is required before proceeding. For features, flows describe the intended user journey. These flows are stored in a new **User Flows** section of `problem_description.md` and become the source material for test scenarios.
+
+**Part 2: Phase 4 - Test Architecture (New Phase)**
+
+A new phase between Discovery (Phase 3) and Approach (Phase 5, formerly Phase 4). This placement is deliberate:
+
+- **After Discovery**: Agents need to know the code to map user flows to specific functions, identify mock boundaries, and analyze existing test coverage.
+- **Before Approach**: The test strategy should inform the approach, not the other way around. An approach that's hard to test is a bad approach. The approach decision now reads `test_plan.md` as an input.
+
+### Phase 4 Agents
+
+Three specialized background agents investigate the test landscape in parallel:
+
+1. **Test Infrastructure Agent**: Framework, fixtures, helpers, mocking patterns, CI integration. Answers: "how does this codebase test?"
+
+2. **Existing Coverage Agent**: Maps existing tests to user flows, identifies gaps, explains why current tests don't catch the bug. Answers: "why don't existing tests catch this?"
+
+3. **Mock Boundary Agent**: Traces each user flow through the code path, identifies where mocks should be placed based on the user's test preference. Answers: "what gets mocked and what gets tested directly?"
+
+For hard-to-track bugs (user can't provide clean reproduction steps), additional investigation agents are launched to trace suspected code paths and identify fault locations. The difficulty escalates effort, not reduces it.
+
+### The `test_plan.md` Document
+
+The synthesis agent combines all findings into `test_plan.md` -- the central artifact of this phase. Key design decisions:
+
+**Plain English test descriptions**: Every test is described in human-readable language so the user can review it. Example:
+
+```
+1. **Rate search returns UNLOCODEs for valid origin** —
+   Verify that when searching rates with a valid origin port,
+   the response includes the origin UNLOCODE in each rate result.
+   - Setup: Create mock rate data with known UNLOCODE values
+   - Action: Call rate_search(origin="USNYC", ...)
+   - Assert: Each result in response has origin_unlocode == "USNYC"
+   - Mock boundary: Mock the database layer, test the service logic
+```
+
+This is the test plan's most important property. Code-level test specifications can be wrong in ways non-engineers can't spot. Plain English can be validated by anyone who understands the problem.
+
+**User co-authorship**: The Phase 4 checkpoint is a hard stop where the user reviews every test scenario. They can add scenarios ("also test what happens when the UNLOCODE is null"), correct mock boundaries ("don't mock the cache layer, that's where the bug lives"), and remove unnecessary tests. This conversation produces better tests than any automated analysis.
+
+**Test preference as user config**: Stored in `.claude/planning-with-james/config.json`, the `test_preference` setting (`"mock"`, `"integration"`, or `"mixed"`) controls how mock boundaries are determined. Default is `"mock"` -- fully mocked tests that run fast and work reliably in CI/CD. Users who prefer integration tests change this once and all future plans adapt.
+
+### Task Ordering: Tests Before Implementation
+
+Phase 7 (Task Breakdown, formerly Phase 6) now mandates that Phase 1 of every task list is "Test Foundation" -- writing all tests from `test_plan.md` before any implementation begins:
+
+```
+Phase 1: Test Foundation
+  - Task 1.1: Set up test scaffolding and fixtures
+  - Task 1.2: Write tests for Scenario 1
+  - Task 1.3: Write tests for Scenario 2
+  ...
+  - CHECKPOINT: All tests written. For bugs: tests FAIL (proving the bug exists)
+
+Phase 2: Implementation
+  ...
+
+Phase N: Verification
+  - Task N.1: Verify all tests from Phase 1 now PASS
+```
+
+For bugs, the Phase 1 checkpoint verifies that tests **fail** -- this proves the tests actually capture the bug. If the tests pass before implementation, they're testing the wrong thing.
+
+### Phase Renumbering
+
+The new phase shifts everything after Discovery:
+
+| Before | After |
+|--------|-------|
+| Phase 4: Approach | Phase 5: Approach |
+| Phase 5: Detailed Plan | Phase 6: Detailed Plan |
+| Phase 6: Task Breakdown | Phase 7: Task Breakdown |
+| Phase 7: Finalize | Phase 8: Finalize |
+
+### Problem Type Adaptation
+
+Test Architecture weight varies by problem type:
+
+| Type | Weight | Why |
+|------|--------|-----|
+| Bug | **Heavy** | Extra agents for hard-to-track bugs. Deep gap analysis. Every flow must have a failing test. |
+| Feature | Medium | Map user journey flows to test scenarios. Establish the test foundation. |
+| Refactor | Medium | Regression guards are critical -- prove existing behavior doesn't change. |
+| New System | Medium | Less existing test infrastructure to analyze, but flows guide the test foundation. |
 
 ---
 

@@ -40,7 +40,9 @@ shipping visualization. I think the data is already in the routing tables
 somewhere, we just need to surface it through the API.
 ```
 
-It will start asking questions. It will show you what it found. It will check if its understanding matches yours. This back-and-forth is the point -- your knowledge fills gaps that code analysis can't.
+It will start asking questions. It will ask you to walk through user flows step by step. It will show you what it found. It will check if its understanding matches yours. This back-and-forth is the point -- your knowledge fills gaps that code analysis can't.
+
+It will also build a test plan in plain English -- every test scenario described so you can review and refine them before any code is written. For bugs, these tests prove the bug exists before you fix it.
 
 **Execute the plan:**
 ```

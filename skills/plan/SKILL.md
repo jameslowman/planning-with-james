@@ -53,14 +53,15 @@ Subagents that skip the knowledge graph will duplicate work and miss documented 
 ## Phase Overview
 
 ```
-Phase 0: Setup           → Create folder, copy templates, register plan
-Phase 1: Context         → Gather problem description from user
-Phase 2: Scoping         → Identify modules, set boundaries
-Phase 3: Discovery       → Parallel deep exploration
-Phase 4: Approach        → Decide on technical direction
-Phase 5: Detailed Plan   → Full implementation specification
-Phase 6: Task Breakdown  → Executable checklist with dependencies
-Phase 7: Finalize        → Cold start doc ready for implementation
+Phase 0: Setup              → Create folder, copy templates, register plan
+Phase 1: Context            → Gather problem description and user flows
+Phase 2: Scoping            → Identify modules, set boundaries
+Phase 3: Discovery          → Parallel deep exploration
+Phase 4: Test Architecture  → Map user flows to test scenarios
+Phase 5: Approach           → Decide on technical direction
+Phase 6: Detailed Plan      → Full implementation specification
+Phase 7: Task Breakdown     → Executable checklist with dependencies
+Phase 8: Finalize           → Cold start doc ready for implementation
 ```
 
 Each phase ends with a **checkpoint** - but checkpoints are **adaptive**, not mandatory stops.
@@ -74,12 +75,13 @@ Each phase ends with a **checkpoint** - but checkpoints are **adaptive**, not ma
 Every checkpoint is an opportunity to draw information out of the user -- context they haven't thought to share, corrections to your assumptions, better ideas than what you found. The goal isn't to produce a plan artifact quickly; it's to build shared understanding.
 
 **ALWAYS present your findings and invite correction:**
-- Phase 1: "Here's my understanding. What did I miss?"
+- Phase 1: "Here's my understanding and the user flows I captured. What did I miss?"
 - Phase 2: "Here's what I think is in scope. What else should I consider?"
 - Phase 3: "Here's what I discovered. Does this match your understanding?"
-- Phase 4: "Here's the approach I recommend. Do you see a better way?"
-- Phase 5: "Here's the detailed plan. Any concerns?"
-- Phase 6: "Here's the task breakdown. Ready to finalize?"
+- Phase 4: "Here are the test scenarios. Do these capture the behavior you described?"
+- Phase 5: "Here's the approach I recommend. Do you see a better way?"
+- Phase 6: "Here's the detailed plan. Any concerns?"
+- Phase 7: "Here's the task breakdown. Ready to finalize?"
 
 **The user is your best source of truth.** They know:
 - Real performance numbers (not stale estimates from old code)
@@ -187,9 +189,10 @@ Create the plan folder with all template files:
 ├── findings/                  # Phase 3 outputs
 │   └── (created during discovery)
 ├── findings_summary.md        # Phase 3 synthesis
-├── approach.md                # Phase 4 output
-├── detailed_plan.md           # Phase 5 output
-├── tasks.md                   # Phase 6 output
+├── test_plan.md               # Phase 4 output
+├── approach.md                # Phase 5 output
+├── detailed_plan.md           # Phase 6 output
+├── tasks.md                   # Phase 7 output
 └── lessons.md                 # Lessons captured during planning/implementation
 ```
 
@@ -208,10 +211,11 @@ Create `_plan_state.json`:
     "1_context": "pending",
     "2_scoping": "pending",
     "3_discovery": "pending",
-    "4_approach": "pending",
-    "5_detailed_plan": "pending",
-    "6_tasks": "pending",
-    "7_finalize": "pending"
+    "4_test_architecture": "pending",
+    "5_approach": "pending",
+    "6_detailed_plan": "pending",
+    "7_tasks": "pending",
+    "8_finalize": "pending"
   },
   "problem_type": null,
   "in_scope_modules": [],
@@ -264,6 +268,7 @@ This document maintains continuity across sessions. If you're resuming after a c
 - [ ] problem_description.md - Not started
 - [ ] scope.md - Not started
 - [ ] findings/ - Not started
+- [ ] test_plan.md - Not started
 - [ ] approach.md - Not started
 - [ ] detailed_plan.md - Not started
 - [ ] tasks.md - Not started
@@ -287,6 +292,8 @@ Read internal planning guidance (these inform your behavior but aren't shown to 
 - Plan structure best practices
 
 **Load project-level lessons**: Read `.claude/planning-with-james/lessons.md` if it exists. These are accumulated lessons from previous plans -- patterns, mistakes to avoid, and techniques that worked. Use them to inform scoping, discovery, and approach phases.
+
+**Load test preferences**: Read `.claude/planning-with-james/config.json` if it exists. This contains user preferences including `test_preference` (`"mock"`, `"integration"`, or `"mixed"` — default `"mock"`) and `test_first` (`true`/`false` — default `true`). These control how the Test Architecture phase (Phase 4) operates. If the config file doesn't exist, use defaults.
 
 Now proceed to Phase 1.
 
@@ -317,7 +324,32 @@ The user already gave you an initial description in Phase 0 Step 1. Now dig deep
 **If success criteria is unclear:**
 > "How will we know this is solved? What does success look like?"
 
-**Only ask questions you need answers to.** If the user's initial description was thorough, you may be able to skip some of these.
+**User flow extraction (ALWAYS ask for bugs, STRONGLY encourage for features):**
+
+This is critical for test-first planning. We need step-by-step user flows to build test scenarios from.
+
+**For bugs:**
+> "Walk me through exactly what you do to trigger this. Step by step — what do you click or call, what data are you working with, and what do you see at each step? Where does it break?"
+>
+> "What should happen instead at the point where it fails?"
+>
+> "Can you reproduce it consistently, or is it intermittent? What conditions make it appear or disappear?"
+>
+> "When did this last work correctly? Any recent changes that might be related?"
+
+**For bugs: do not proceed past Phase 1 without at least one concrete user flow.** If the user genuinely cannot provide reproduction steps (intermittent, production-only, etc.), note this as a gap and the Test Architecture phase (Phase 4) will escalate its investigation effort accordingly.
+
+**For features:**
+> "Walk me through the user journey you're envisioning. Step by step — what does the user do, and what do they see at each step?"
+>
+> "Are there alternate paths? What happens if the user provides bad input, or skips a step?"
+>
+> "What's the simplest version of this flow? What's the full version?"
+
+**For refactors:**
+> "What behavior should remain exactly the same after the refactor? Walk me through the key user-facing flows that must not change."
+
+**Only ask questions you need answers to.** If the user's initial description already includes detailed flows, don't re-ask — capture what they gave you.
 
 ## Step 2: Process Additional Context
 
@@ -357,6 +389,23 @@ status: draft
 {What should happen instead}
 {What capability should exist}
 
+## User Flows
+
+{Step-by-step sequences from the user. Capture verbatim or lightly structured.}
+
+### Flow 1: {short name}
+1. {step}
+2. {step}
+3. {step}
+4. **Expected**: {what should happen}
+5. **Actual**: {what happens instead — for bugs}
+
+### Flow 2: {short name}
+1. ...
+
+### Alternate Paths / Edge Cases
+{Variations, error conditions, boundary cases}
+
 ## User's Theories
 {Any hypotheses the user shared about cause or approach}
 
@@ -390,9 +439,10 @@ Present the problem description to the user:
 >
 > **Type**: {type}
 > **Summary**: {summary}
+> **User Flows Captured**: {count} ({brief list — e.g., "1. Rate search returns wrong UNLOCODEs, 2. Bulk export times out"})
 > **Success Criteria**: {criteria}
 >
-> Does this capture it accurately? Should I add or change anything?"
+> Review `problem_description.md` for the full user flows. Do these capture the behavior accurately? Any flows I should add?"
 
 **If user approves**: Update `_plan_state.json` phase to 2, proceed to Scoping
 **If user has changes**: Incorporate feedback, re-checkpoint
@@ -729,7 +779,7 @@ Present your discovery findings and validate them with the user:
 - Share knowledge not visible in code (business rules, historical decisions)
 - Suggest a better approach than what the findings imply
 
-**If user approves**: Proceed to Phase 4
+**If user approves**: Proceed to Phase 4 (Test Architecture)
 **If user corrects findings**: Update findings documents, re-present, get confirmation
 **If user wants deeper investigation**: Spawn targeted subagents for specific areas
 **If findings fundamentally change scope**: May need to revisit Phase 2
@@ -738,13 +788,411 @@ Present your discovery findings and validate them with the user:
 
 ---
 
-# PHASE 4: APPROACH
+# PHASE 4: TEST ARCHITECTURE
+
+**Goal**: Map user flows to concrete test scenarios in plain English, analyze the existing test landscape, and produce a test plan that the user can review and co-author before any implementation begins.
+
+This phase is the bridge between "what should happen" (user flows from Phase 1) and "how do we prove it" (executable tests). The output — `test_plan.md` — is written in plain English so the user can review every test scenario, suggest additions, and catch gaps before a single line of test code is written.
+
+**Test preference**: Use the `test_preference` from `.claude/planning-with-james/config.json` (default: `"mock"`). This affects mock boundary analysis and the test plan's mock strategy section.
+
+## Step 1: Launch Test Discovery Agents
+
+Based on `scope.md` and `findings_summary.md`, spawn background agents to investigate the test landscape. Launch ALL agents in a SINGLE message.
+
+For each agent:
+- `subagent_type`: "general-purpose"
+- `model`: "opus"
+- `run_in_background`: true
+- `max_turns`: 30
+
+### Agent 1: Test Infrastructure
+
+```
+You are investigating the TEST INFRASTRUCTURE for the "{plan_name}" plan.
+
+## CRITICAL: Knowledge-First Protocol
+
+Start from the knowledge graph:
+1. Read: .claude/planning-with-james/knowledge/_overview.md
+2. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_index.md (for each in-scope module)
+3. THEN explore test files and configuration
+
+## Your Task
+
+Investigate the testing setup for the in-scope modules:
+{list modules from scope.md}
+
+Find and document:
+1. **Test framework**: What framework is used? (jest, vitest, pytest, mocha, etc.)
+2. **Test location**: Where do tests live relative to source? (__tests__/, tests/, co-located .test.ts?)
+3. **Configuration**: Test config files (jest.config, vitest.config, pytest.ini, conftest.py, etc.)
+4. **Mocking patterns**: How does the codebase mock dependencies? Libraries used (jest.mock, unittest.mock, sinon, etc.), common patterns, mock factories.
+5. **Fixture patterns**: How is test data set up? Factories, fixture files, builders, seed data.
+6. **Helper utilities**: Shared test helpers, custom assertions, test utilities.
+7. **CI/CD integration**: How are tests run in CI? Any relevant scripts or config.
+
+Write findings to: {plan_folder}/findings/findings_test_infrastructure.md
+
+```markdown
+---
+area: test-infrastructure
+investigated_at: {timestamp}
+---
+
+# Findings: Test Infrastructure
+
+## Framework & Configuration
+{framework, version, config file locations}
+
+## Test Location Patterns
+{where tests live, naming conventions}
+
+## Mocking Patterns
+{how mocks are done, libraries, examples from existing code}
+
+## Fixture Patterns
+{how test data is created, factories, helpers}
+
+## Test Utilities
+{shared helpers, custom assertions}
+
+## CI/CD
+{how tests run in CI}
+```
+
+After writing findings, write a result file:
+{plan_folder}/findings/test_infrastructure_result.json
+{"area": "test-infrastructure", "summary": "One sentence summary"}
+```
+
+### Agent 2: Existing Coverage Analysis
+
+```
+You are analyzing EXISTING TEST COVERAGE for the "{plan_name}" plan.
+
+## CRITICAL: Knowledge-First Protocol
+
+Start from the knowledge graph:
+1. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_index.md (for each in-scope module)
+2. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_refs.json
+3. THEN explore test files
+
+## Problem Context
+{Paste problem_description.md summary including user flows}
+
+## In-Scope Modules
+{list from scope.md}
+
+## Your Task
+
+For each in-scope module, investigate its test coverage:
+
+1. **Find existing tests**: What test files exist for each module? List them with file paths.
+2. **Coverage of affected flows**: Do any existing tests touch the user flows described in the problem? Map each user flow step to existing tests (or note the gap).
+3. **Gap analysis**: Why don't existing tests catch this bug / cover this feature? Be specific:
+   - Are the flows tested at all?
+   - Are they tested but with different data that doesn't trigger the issue?
+   - Is the mock boundary wrong (mocking out the layer where the bug lives)?
+   - Are there missing edge case tests?
+   - Is the test asserting the wrong thing?
+4. **Reusable assets**: Which existing test fixtures, helpers, factories, or mock setups can be reused for new tests?
+
+Write findings to: {plan_folder}/findings/findings_test_coverage.md
+
+```markdown
+---
+area: test-coverage
+investigated_at: {timestamp}
+---
+
+# Findings: Existing Test Coverage
+
+## Module Coverage Map
+| Module | Test Files | Tests Count | Relevant to Problem |
+|--------|-----------|-------------|---------------------|
+| {module} | {files} | {count} | {yes/no — which flows} |
+
+## User Flow Coverage
+### Flow 1: {name from problem_description.md}
+- Step 1: {covered by test X / NOT COVERED}
+- Step 2: {covered / NOT COVERED}
+...
+
+### Flow 2: {name}
+...
+
+## Gap Analysis
+{Why existing tests miss this — be specific and actionable}
+
+## Reusable Test Assets
+| Asset | File | Can Be Used For |
+|-------|------|-----------------|
+| {fixture/helper/factory} | {path} | {what new tests can reuse it for} |
+```
+
+After writing findings, write a result file:
+{plan_folder}/findings/test_coverage_result.json
+{"area": "test-coverage", "summary": "One sentence summary"}
+```
+
+### Agent 3: Mock Boundary Analysis
+
+```
+You are analyzing MOCK BOUNDARIES for the "{plan_name}" plan.
+
+## CRITICAL: Knowledge-First Protocol
+
+Start from the knowledge graph:
+1. Read: .claude/planning-with-james/knowledge/_graph.json
+2. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_index.md (for each in-scope module)
+3. Read: .claude/planning-with-james/knowledge/modules/{module_id}/_refs.json
+4. THEN trace code paths in source
+
+## Problem Context
+{Paste problem_description.md summary including user flows}
+
+## Discovery Findings
+{Paste or reference findings_summary.md — especially code change locations}
+
+## Test Preference: {mock | integration | mixed}
+
+## Your Task
+
+For each user flow from the problem description, trace the code path through the modules:
+
+1. **Code path trace**: For each flow step, identify the function/method that executes it. Follow the call chain from entry point through to the data layer.
+2. **Mock boundary recommendation**: Based on the test preference, identify where mocks should be placed:
+   - For "mock": Mock at the data/external service layer. Test all business logic directly.
+   - For "integration": Identify what needs real connections vs what can be stubbed.
+   - For "mixed": Recommend which scenarios benefit from mocking vs integration.
+3. **Data fabrication**: What test data needs to be fabricated? What shapes? What edge cases in the data?
+4. **Function signatures**: For each function that will be tested, note its signature, inputs, and expected outputs. This helps write test scenarios in plain English.
+
+Write findings to: {plan_folder}/findings/findings_mock_boundaries.md
+
+```markdown
+---
+area: mock-boundaries
+investigated_at: {timestamp}
+---
+
+# Findings: Mock Boundaries
+
+## Code Path Traces
+
+### Flow 1: {name}
+| Step | Function | File:Line | Input | Output |
+|------|----------|-----------|-------|--------|
+| 1 | {function} | {file:line} | {input type} | {output type} |
+| 2 | ... | | | |
+
+**Recommended mock boundary**: {where to mock and why}
+
+### Flow 2: {name}
+...
+
+## Mock Strategy
+**Boundary layer**: {e.g., "mock database calls, test service + handler layers"}
+**Libraries to use**: {based on what the codebase already uses}
+
+## Data Fabrication Needs
+| Data Shape | Used By | Example | Edge Cases |
+|-----------|---------|---------|------------|
+| {type} | {function} | {example} | {null, empty, overflow, etc.} |
+
+## Function Signatures for Test Scenarios
+| Function | File | Inputs | Expected Output | Side Effects |
+|----------|------|--------|-----------------|-------------- |
+| {name} | {file} | {params} | {return value} | {db writes, events, etc.} |
+```
+
+After writing findings, write a result file:
+{plan_folder}/findings/mock_boundaries_result.json
+{"area": "mock-boundaries", "summary": "One sentence summary"}
+```
+
+### Additional Agents for Hard-to-Track Bugs
+
+If the problem type is `bug` AND the user couldn't provide clean reproduction flows (noted as a gap in `problem_description.md`), launch additional investigation agents:
+
+```
+You are investigating a HARD-TO-TRACK BUG for the "{plan_name}" plan.
+
+## Context
+{problem description — symptoms, intermittent behavior, conditions}
+
+## Discovery Findings
+{relevant findings from Phase 3}
+
+## Your Task
+
+The user cannot reliably reproduce this bug. Your job is to find it:
+
+1. Read the knowledge graph for all in-scope modules
+2. Trace suspected code paths based on symptoms
+3. Look for:
+   - Race conditions, timing dependencies
+   - State mutation that depends on execution order
+   - Caching that could serve stale data
+   - Error handling that silently swallows failures
+   - Configuration differences between environments
+   - Data-dependent branches (works for most data, fails for edge cases)
+4. For each suspected fault location, write a test scenario that WOULD expose it
+5. Propose concrete reproduction steps based on your analysis
+
+Write findings to: {plan_folder}/findings/findings_bug_investigation.md
+Write result: {plan_folder}/findings/bug_investigation_result.json
+```
+
+## Step 2: Wait for Test Discovery Agents
+
+Same polling pattern as Phase 3:
+
+```bash
+EXPECTED={number of test discovery agents}; TIMEOUT=1200; ELAPSED=0
+while [ $(find "{plan_folder}/findings" -name "*_result.json" -newer "{plan_folder}/findings_summary.md" 2>/dev/null | wc -l) -lt $EXPECTED ] && [ $ELAPSED -lt $TIMEOUT ]; do
+  sleep 15; ELAPSED=$((ELAPSED + 15))
+done
+```
+
+Read all result files after completion. Re-launch any failed agents. Delete result files after processing.
+
+## Step 3: Synthesize into Test Plan
+
+Spawn ONE synthesis agent (`subagent_type`: "general-purpose", `model`: "opus"):
+
+```
+You are creating a TEST PLAN for the "{plan_name}" plan.
+
+## CRITICAL: Plain English Test Descriptions
+Every test must be described in plain English that a non-engineer could review.
+The user will read this document and help refine it before any test code is written.
+
+## Read These Files
+- {plan_folder}/problem_description.md (especially User Flows section)
+- {plan_folder}/findings_summary.md
+- {plan_folder}/findings/findings_test_infrastructure.md
+- {plan_folder}/findings/findings_test_coverage.md
+- {plan_folder}/findings/findings_mock_boundaries.md
+- {plan_folder}/findings/findings_bug_investigation.md (if exists)
+
+## Test Preference: {mock | integration | mixed}
+
+## Your Task
+
+Create {plan_folder}/test_plan.md with this structure:
+
+```markdown
+---
+plan_name: "{plan_name}"
+created_at: "{timestamp}"
+test_preference: "{preference}"
+status: draft
+---
+
+# Test Plan: {Plan Name}
+
+## Test Preference
+{mock / integration / mixed — explain what this means for this plan}
+
+## Existing Test Landscape
+- **Framework**: {from test infrastructure findings}
+- **Patterns**: {how tests are structured}
+- **Relevant existing tests**: {list with file paths}
+- **Gap analysis**: {why existing tests don't catch this — be specific}
+
+## Test Scenarios
+
+### Scenario 1: {name — derived from User Flow 1}
+**Source**: User Flow 1 from problem_description.md
+**Type**: {unit | integration}
+**Tests**:
+
+1. **{descriptive test name}** — {plain English: "Verify that when a user does X with data Y, the system returns Z"}
+   - **Setup**: {what data and mocks are needed, in plain language}
+   - **Action**: {what function is called with what arguments}
+   - **Assert**: {what we check — return value, state change, error}
+   - **Mock boundary**: {what's mocked and why}
+
+2. **{next test}** — {plain English description}
+   ...
+
+{Repeat for each user flow}
+
+### Edge Case Scenarios
+{Tests for boundary conditions discovered during analysis}
+
+### Regression Guards
+{Tests protecting existing behavior that must not change}
+
+## Mock Strategy
+{Consolidated from mock boundary findings}
+
+## Files to Create / Modify
+| File | Purpose |
+|------|---------|
+| {test file path} | {what tests go here} |
+
+## Open Questions
+{Things needing user input}
+```
+
+Be thorough. Every user flow from problem_description.md must map to at least one test scenario. If a flow is complex, break it into multiple tests — one per meaningful assertion.
+
+Return ONLY: {"scenarios": {count}, "tests": {count}, "files": {count}, "summary": "One sentence"}
+```
+
+## Step 4: Update Cold Start Doc
+
+Update `context_scratch_pad.md`:
+- Current phase: 4 - Test Architecture
+- Number of test scenarios
+- Key gaps found in existing coverage
+- Mock strategy summary
+
+## Step 5: Checkpoint (ALWAYS STOP)
+
+This checkpoint is critical. The user co-authors the test plan.
+
+Present the test plan summary and ask the user to review the full document:
+
+> "Test plan complete. Here's the summary:
+>
+> **Test Preference**: {mock/integration/mixed}
+> **Scenarios**: {N} (mapped from your user flows)
+> **Individual Tests**: {M}
+> **Test Files to Create/Modify**: {list}
+>
+> **Why existing tests miss this**: {one-line gap analysis}
+>
+> **Mock Strategy**: {one-line summary — e.g., "mock at the database layer, test service and handler logic directly"}
+>
+> Review `test_plan.md` for every test described in plain English. Do these tests capture the behavior you described? Should any be added, changed, or removed?"
+
+**Wait for the user to respond.** They may:
+- Confirm the test plan
+- Add test scenarios they want covered ("also test what happens when X is null")
+- Correct mock boundaries ("don't mock the cache layer, that's where the bug is")
+- Simplify tests ("we don't need to test Y, it's already covered elsewhere")
+- Add edge cases from production experience
+- Question whether a test is testing the right thing
+
+**If user approves**: Update `_plan_state.json` phase to 5, proceed to Approach
+**If user has changes**: Incorporate into test_plan.md, re-present key changes, confirm
+**If test plan reveals scope issues**: May need to revisit Phase 2
+
+**Lesson capture**: If the user's feedback contained a correction about test patterns, mock boundaries, or coverage expectations, add an entry to `{plan_folder}/lessons.md`.
+
+---
+
+# PHASE 5: APPROACH
 
 **Goal**: Decide on technical direction before detailed planning.
 
 ## Step 1: Generate Options
 
-Based on findings, identify possible approaches:
+Based on findings and the test plan, identify possible approaches:
 
 ```
 You are deciding on an approach for the "{plan_name}" plan.
@@ -754,6 +1202,7 @@ Read:
 - {plan_folder}/scope.md
 - {plan_folder}/findings_summary.md
 - All files in {plan_folder}/findings/
+- {plan_folder}/test_plan.md
 
 Generate 2-3 viable approaches. For each:
 - What would we do?
@@ -824,7 +1273,7 @@ Things we're explicitly NOT doing:
 ## Step 3: Update Cold Start Doc
 
 Update `context_scratch_pad.md`:
-- Current phase: 4 - Approach
+- Current phase: 5 - Approach
 - Chosen approach summary
 - Key risks
 
@@ -860,7 +1309,7 @@ Present your approach analysis and get the user's input:
 - Ask clarifying questions about trade-offs
 - Prefer a different option with good reasons
 
-**If user approves**: Proceed to Phase 5
+**If user approves**: Proceed to Phase 6
 **If user prefers different option**: Update approach.md, confirm, proceed
 **If user suggests new approach**: Evaluate it, update approach.md, confirm, proceed
 **If new information changes the calculus**: May need to revisit discovery
@@ -869,7 +1318,7 @@ Present your approach analysis and get the user's input:
 
 ---
 
-# PHASE 5: DETAILED PLANNING
+# PHASE 6: DETAILED PLANNING
 
 **Goal**: Full implementation specification.
 
@@ -883,6 +1332,7 @@ Read all previous documents:
 - scope.md
 - findings_summary.md
 - All findings/*.md
+- test_plan.md
 - approach.md
 
 Create detailed_plan.md with complete implementation specification.
@@ -949,10 +1399,7 @@ status: draft
 
 ## Test Strategy
 
-| Test Type | What to Test | Files |
-|-----------|--------------|-------|
-| Unit | {what} | {where} |
-| Integration | {what} | {where} |
+See `test_plan.md` for the complete test plan with plain English test scenarios, mock strategy, and file locations. The test plan was reviewed and approved in Phase 4.
 
 ## Migration / Rollout
 
@@ -966,7 +1413,7 @@ status: draft
 ## Step 3: Update Cold Start Doc
 
 Update `context_scratch_pad.md`:
-- Current phase: 5 - Detailed Planning
+- Current phase: 6 - Detailed Planning
 - Summary of plan sections
 - Key implementation notes
 
@@ -1005,7 +1452,7 @@ Present the detailed plan and invite feedback:
 - Question implementation details
 - Suggest simplifications
 
-**If user approves**: Proceed to Phase 6
+**If user approves**: Proceed to Phase 7
 **If user has feedback**: Incorporate into detailed_plan.md, re-present key changes, confirm
 **If plan has fundamental issues**: May need to revisit approach
 
@@ -1013,7 +1460,7 @@ Present the detailed plan and invite feedback:
 
 ---
 
-# PHASE 6: TASK BREAKDOWN
+# PHASE 7: TASK BREAKDOWN
 
 **Goal**: Convert plan to executable checklist with dependencies.
 
@@ -1025,9 +1472,11 @@ You are breaking down the detailed plan into executable tasks.
 Read:
 - detailed_plan.md
 - approach.md (for risks/dependencies)
+- test_plan.md (for test-first task ordering)
 
 Create a task list that:
-- Groups tasks into logical phases
+- **Starts with test writing** — Phase 1 of tasks is ALWAYS writing the tests from test_plan.md. For bugs, these tests must fail (proving the bug exists) before implementation begins. For features, these tests describe expected behavior.
+- Groups remaining tasks into logical phases after the test foundation
 - Identifies dependencies between tasks
 - Includes complexity estimates
 - Has checkpoints for user review
@@ -1048,34 +1497,46 @@ status: ready
 
 # Task Checklist: {Plan Name}
 
-## Phase 1: {Phase Name}
+## Phase 1: Test Foundation
+
+**Goal**: Write all tests from test_plan.md BEFORE implementation. For bugs, these tests should FAIL (proving the bug exists). For features, these tests describe expected behavior and may need stubs.
+
+- [ ] **Task 1.1** (S) - Set up test scaffolding, fixtures, and mock utilities needed by test_plan.md
+  - Files: {from test_plan.md Mock Strategy and Files sections}
+  - Notes: Reuse existing fixtures where test_plan.md identifies them
+
+- [ ] **Task 1.2** (M/L) - Write tests for Scenario 1: {name from test_plan.md}
+  - Files: {from test_plan.md}
+  - Reference: test_plan.md Scenario 1 for plain English test descriptions
+
+- [ ] **Task 1.3** (M/L) - Write tests for Scenario 2: {name from test_plan.md}
+  - Files: {from test_plan.md}
+
+{... one task per scenario from test_plan.md ...}
+
+- [ ] **Task 1.N** (S) - Write edge case and regression guard tests
+  - Files: {from test_plan.md}
+
+- [ ] **CHECKPOINT 1**: Test foundation complete
+  - [ ] Verify: All test scenarios from test_plan.md are implemented
+  - [ ] Verify: For bugs — tests FAIL, confirming the bug is captured
+  - [ ] Verify: For features — tests describe expected behavior (may fail or use stubs)
+  - [ ] Verify: Tests run fast (mocked appropriately per test_plan.md mock strategy)
+  - [ ] Get user confirmation before proceeding to implementation
+
+## Phase 2: {Implementation Phase Name}
 
 **Goal**: {what this phase accomplishes}
 
-- [ ] **Task 1.1** (S) - {description}
-  - Files: `path/to/file.ts`
-  - Notes: {any specific instructions}
-
-- [ ] **Task 1.2** (M) - {description}
-  - Depends on: 1.1
-  - Files: `path/to/file.ts`
-
-- [ ] **CHECKPOINT 1**: {what to verify}
-  - [ ] Verify: {check 1}
-  - [ ] Verify: {check 2}
-  - [ ] Get user confirmation before proceeding
-
-## Phase 2: {Phase Name}
-
 - [ ] **Task 2.1** (L) - {description}
   - Depends on: Phase 1 complete
-  - Research needed: {if any}
+  - Files: {from detailed_plan.md}
 
 ...
 
-## Phase N: Testing & Cleanup
+## Phase N: Verification & Cleanup
 
-- [ ] **Task N.1** (M) - Write tests
+- [ ] **Task N.1** (M) - Verify all tests from Phase 1 now PASS
 - [ ] **Task N.2** (S) - Update documentation
 - [ ] **Task N.3** (S) - Code cleanup
 
@@ -1102,7 +1563,7 @@ status: ready
 ## Step 3: Update Cold Start Doc
 
 Update `context_scratch_pad.md`:
-- Current phase: 6 - Task Breakdown
+- Current phase: 7 - Task Breakdown
 - Task summary (phases, counts)
 - First tasks to start
 
@@ -1118,14 +1579,14 @@ Always present the task breakdown to the user. This is the last chance to adjust
 >
 > Ready to finalize?"
 
-**If user approves**: Proceed to Phase 7
+**If user approves**: Proceed to Phase 8
 **If user has feedback**: Adjust tasks, re-checkpoint
 
 **Lesson capture**: If the user's feedback contained a correction to your assumptions, a reusable codebase insight, or context about what has failed before, add an entry to `{plan_folder}/lessons.md` under the appropriate section. Keep entries to 2-3 sentences with enough context to be useful in isolation. Not every correction is a lesson -- only capture insights that would help a fresh agent on a different plan.
 
 ---
 
-# PHASE 7: FINALIZE
+# PHASE 8: FINALIZE
 
 **Goal**: Prepare cold start doc and mark planning complete.
 
@@ -1161,6 +1622,7 @@ last_updated: {timestamp}
 - [x] scope.md - Complete
 - [x] findings/ - Complete ({N} areas investigated)
 - [x] findings_summary.md - Complete
+- [x] test_plan.md - Complete ({N} test scenarios)
 - [x] approach.md - Complete
 - [x] detailed_plan.md - Complete
 - [x] tasks.md - Complete
@@ -1191,19 +1653,20 @@ If you're starting fresh or after context loss:
 ## Session Log
 
 - {timestamp}: Plan initialized
-- {timestamp}: Problem description complete
+- {timestamp}: Problem description complete (with user flows)
 - {timestamp}: Scope defined
 - {timestamp}: Discovery complete
+- {timestamp}: Test plan complete ({N} scenarios)
 - {timestamp}: Approach decided
 - {timestamp}: Detailed plan complete
-- {timestamp}: Tasks defined
+- {timestamp}: Tasks defined (test-first)
 - {timestamp}: PLANNING COMPLETE - Ready for implementation
 ```
 
 ## Step 2: Update Plan State
 
 Update `_plan_state.json`:
-- `current_phase`: 7
+- `current_phase`: 8
 - All phase statuses: "complete"
 - Add final checkpoint timestamp
 - Add implementation fields (for go-time):
@@ -1229,12 +1692,13 @@ Present completion to user:
 > "Planning complete for {plan_name}!
 >
 > **Documents Created**:
-> - problem_description.md
+> - problem_description.md (with user flows)
 > - scope.md
 > - findings_summary.md (+ {N} detailed findings)
+> - test_plan.md ({N} test scenarios, {M} individual tests)
 > - approach.md
 > - detailed_plan.md
-> - tasks.md
+> - tasks.md (test-first: Phase 1 writes all tests before implementation)
 > - context_scratch_pad.md
 >
 > **Next Steps**:
@@ -1250,12 +1714,17 @@ Present completion to user:
 
 After Phase 1, adjust subsequent phases based on problem type:
 
-| Problem Type | Discovery | Approach | Detailed Plan | Tasks |
-|--------------|-----------|----------|---------------|-------|
-| Bug | **Heavy** | Light | Light | Light |
-| Feature | Medium | **Heavy** | **Heavy** | Medium |
-| Refactor | Light | Medium | **Heavy** | **Heavy** |
-| New System | **Heavy** | **Heavy** | **Heavy** | Medium |
+| Problem Type | Discovery | Test Architecture | Approach | Detailed Plan | Tasks |
+|--------------|-----------|-------------------|----------|---------------|-------|
+| Bug | **Heavy** | **Heavy** | Light | Light | Light |
+| Feature | Medium | Medium | **Heavy** | **Heavy** | Medium |
+| Refactor | Light | Medium | Medium | **Heavy** | **Heavy** |
+| New System | **Heavy** | Medium | **Heavy** | **Heavy** | Medium |
 
 **Heavy** = More subagents, more detail, more checkpoints
 **Light** = Streamlined, fewer questions, faster progression
+
+For Test Architecture specifically:
+- **Bug Heavy**: Launch extra investigation agents for hard-to-track bugs. Deep gap analysis on why existing tests miss the failure. Every user flow must have a failing test scenario.
+- **Feature/Refactor Medium**: Map user flows to test scenarios. Analyze existing coverage. Regression guards are important for refactors.
+- **New System Medium**: Less existing test infrastructure to analyze, but user flow scenarios guide the test foundation.

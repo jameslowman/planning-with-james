@@ -9,10 +9,11 @@
     "1_context": "pending",
     "2_scoping": "pending",
     "3_discovery": "pending",
-    "4_approach": "pending",
-    "5_detailed_plan": "pending",
-    "6_tasks": "pending",
-    "7_finalize": "pending"
+    "4_test_architecture": "pending",
+    "5_approach": "pending",
+    "6_detailed_plan": "pending",
+    "7_tasks": "pending",
+    "8_finalize": "pending"
   },
   "problem_type": null,
   "in_scope_modules": [],

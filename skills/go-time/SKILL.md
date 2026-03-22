@@ -220,6 +220,11 @@ Read `{plan_folder}/detailed_plan.md` - specifically the section that covers the
 
 Know: exact files to modify, code patterns to follow, edge cases to handle.
 
+### 4b. Test plan (when working on test tasks)
+If the current task involves writing or modifying tests, read `{plan_folder}/test_plan.md`.
+
+Know: plain English test descriptions, mock strategy, mock boundaries, fixture patterns, existing test assets to reuse. The test plan was co-authored with the user — follow it closely.
+
 ### 5. Lessons
 Read `{plan_folder}/lessons.md`
 
@@ -396,6 +401,8 @@ Run `git diff` and review the changes against what the plan specified:
 - Did we touch files we shouldn't have?
 - Did we miss any files the plan mentioned?
 - Do the changes match the plan's intent?
+- If this is a test-writing phase: do the tests match the plain English descriptions in `test_plan.md`?
+- If this is an implementation phase: do the previously-failing tests now pass?
 
 **e2. Elegance check**
 Review the implementation from this phase with fresh eyes:
