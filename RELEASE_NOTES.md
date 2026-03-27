@@ -17,7 +17,7 @@ Planning now includes a dedicated Test Architecture phase that maps user flows t
 
   For hard-to-track bugs, additional investigation agents are launched. Output is `test_plan.md` — every test described in plain English with setup, action, assertion, and mock boundary.
 
-- **Phase 7 (Task Breakdown)**: Phase 1 of every task list is now "Test Foundation" — writing all tests from `test_plan.md` before implementation. For bugs, the checkpoint verifies tests *fail* (proving the bug is captured).
+- **Phase 8 (Task Breakdown)**: Phase 1 of every task list is now "Test Foundation" — writing all tests from `test_plan.md` before implementation. For bugs, the checkpoint verifies tests *fail* (proving the bug is captured).
 
 - **User preferences**: New `.claude/planning-with-james/config.json` supports `test_preference` (`"mock"` / `"integration"` / `"mixed"`, default `"mock"`) and `test_first` (default `true`).
 

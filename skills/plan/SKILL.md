@@ -59,9 +59,10 @@ Phase 2: Scoping            → Identify modules, set boundaries
 Phase 3: Discovery          → Parallel deep exploration
 Phase 4: Test Architecture  → Map user flows to test scenarios
 Phase 5: Approach           → Decide on technical direction
-Phase 6: Detailed Plan      → Full implementation specification
-Phase 7: Task Breakdown     → Executable checklist with dependencies
-Phase 8: Finalize           → Cold start doc ready for implementation
+Phase 6: Approach Stress Test → Critique the approach + find what already exists
+Phase 7: Detailed Plan      → Full implementation specification
+Phase 8: Task Breakdown     → Executable checklist with dependencies
+Phase 9: Finalize           → Cold start doc ready for implementation
 ```
 
 Each phase ends with a **checkpoint** - but checkpoints are **adaptive**, not mandatory stops.
@@ -80,8 +81,9 @@ Every checkpoint is an opportunity to draw information out of the user -- contex
 - Phase 3: "Here's what I discovered. Does this match your understanding?"
 - Phase 4: "Here are the test scenarios. Do these capture the behavior you described?"
 - Phase 5: "Here's the approach I recommend. Do you see a better way?"
-- Phase 6: "Here's the detailed plan. Any concerns?"
-- Phase 7: "Here's the task breakdown. Ready to finalize?"
+- Phase 6: "Here's what a fresh pair of eyes found — flaws in the approach and existing code we should leverage."
+- Phase 7: "Here's the detailed plan. Any concerns?"
+- Phase 8: "Here's the task breakdown. Ready to finalize?"
 
 **The user is your best source of truth.** They know:
 - Real performance numbers (not stale estimates from old code)
@@ -156,8 +158,9 @@ This context informs EVERY phase of planning. Include it in:
 - Phase 1: The problem description already has context from the epic
 - Phase 2: Scoping is guided by the epic outline and learnings
 - Phase 3: Discovery agents get epic context in their prompts
-- Phase 4: Approach is constrained by architecture decisions in learnings.md
-- Phase 5: Detailed plan follows patterns established in learnings.md
+- Phase 5: Approach is constrained by architecture decisions in learnings.md
+- Phase 6: Stress test benefits from learnings about established patterns and past failures
+- Phase 7: Detailed plan follows patterns established in learnings.md
 
 **If the plan folder already exists** (created by the epic skill): skip Step 5 (location question) and use the existing folder.
 
@@ -191,8 +194,10 @@ Create the plan folder with all template files:
 ├── findings_summary.md        # Phase 3 synthesis
 ├── test_plan.md               # Phase 4 output
 ├── approach.md                # Phase 5 output
-├── detailed_plan.md           # Phase 6 output
-├── tasks.md                   # Phase 7 output
+├── reuse_analysis.md          # Phase 6 output (reuse agent)
+├── critique_report.md         # Phase 6 output (critique agent)
+├── detailed_plan.md           # Phase 7 output
+├── tasks.md                   # Phase 8 output
 └── lessons.md                 # Lessons captured during planning/implementation
 ```
 
@@ -213,9 +218,10 @@ Create `_plan_state.json`:
     "3_discovery": "pending",
     "4_test_architecture": "pending",
     "5_approach": "pending",
-    "6_detailed_plan": "pending",
-    "7_tasks": "pending",
-    "8_finalize": "pending"
+    "6_stress_test": "pending",
+    "7_detailed_plan": "pending",
+    "8_tasks": "pending",
+    "9_finalize": "pending"
   },
   "problem_type": null,
   "in_scope_modules": [],
@@ -1318,7 +1324,333 @@ Present your approach analysis and get the user's input:
 
 ---
 
-# PHASE 6: DETAILED PLANNING
+# PHASE 6: APPROACH STRESS TEST
+
+**Goal**: Before committing to a detailed plan, stress-test the chosen approach with two parallel agents — one that critiques the approach for flaws, and one that searches for existing code the approach should leverage. This catches both bad assumptions and unnecessary new code before they get baked into the plan.
+
+**Why this phase exists**: Two biases compound in agentic planning:
+
+1. **Confirmation bias**: The agent that chose the approach has investment in it. It won't naturally look for reasons it's wrong. A fresh agent with no stake in the approach will catch assumptions that don't hold, edge cases that break it, and simpler paths that were overlooked.
+
+2. **Build-new bias**: Agentic AI prefers creating new code over leveraging what exists. Discovery (Phase 3) maps the problem area, but runs *before* an approach is decided. Once the approach is locked, nobody asks "given this specific approach, what already exists that serves it?"
+
+Both agents run in parallel — same inputs, different lenses, one checkpoint.
+
+## Step 1: Launch Both Agents in Parallel
+
+Launch two background Opus agents simultaneously with the full approach context.
+
+### Agent A: Approach Critique
+
+```
+You are an approach critique agent for plan "{plan_name}".
+
+Your job is to be a skeptical reviewer of the chosen approach. You have NO stake in
+this approach — you didn't choose it. Your goal is to find flaws, bad assumptions,
+missed edge cases, and simpler alternatives BEFORE the team commits to a detailed plan.
+
+Read these documents first:
+- approach.md (the approach you are critiquing)
+- findings_summary.md (what was discovered about the problem area)
+- All findings/*.md (detailed module-level findings)
+- test_plan.md (the test scenarios the approach must satisfy)
+- scope.md (which modules are in play)
+- problem_description.md (the original problem and user flows)
+If the plan is part of an epic, also read the epic learnings.md.
+
+Then investigate with these specific questions:
+
+### 1. Assumption Verification
+For each assumption the approach makes (explicit or implicit), verify it against
+the actual codebase:
+- Does the code actually work the way the approach assumes?
+- Are there runtime conditions, configurations, or environments where
+  the assumption breaks? (e.g., different user types, account tiers, deployment modes)
+- Does the approach assume something is static that is actually dynamic (or vice versa)?
+- Are there race conditions, ordering dependencies, or state transitions the approach
+  doesn't account for?
+
+### 2. Edge Case Analysis
+Walk through each step of the approach and ask "what if...":
+- What if the input is unexpected (null, empty, malformed, enormous)?
+- What if an external dependency is unavailable or returns something unexpected?
+- What if this runs in a different context than the primary one (different user type,
+  different environment, different browser, different OS)?
+- What if two instances of this run concurrently?
+- What if a previous step partially fails?
+
+### 3. Simpler Alternatives
+For each significant piece of work the approach proposes, ask:
+- Is there a simpler way to achieve the same result?
+- Is the approach solving the root cause, or working around a symptom?
+- Could a smaller change (config tweak, flag flip, parameter adjustment) fix this
+  without the proposed code changes?
+- Is the approach over-engineering for the actual scope of the problem?
+
+### 4. Risk Assessment
+Evaluate the approach against practical risks:
+- What's the blast radius if the approach has a bug? (affects one user? all users? data loss?)
+- What are the rollback options if this goes wrong in production?
+- Are there breaking changes that affect other consumers of the modified code?
+- Does the approach introduce new dependencies or coupling that will be hard to undo?
+
+For each finding, provide:
+- **Issue**: What's wrong or risky
+- **Evidence**: Code paths, configurations, or scenarios that demonstrate the issue
+- **Severity**: BLOCKING (must fix before proceeding), CONCERN (should address in plan),
+  or NOTE (worth knowing, not actionable now)
+- **Suggestion**: What to do about it (fix the approach, add a step, add a test, accept the risk)
+
+Write your findings to critique_report.md.
+```
+
+### Agent B: Reuse Analysis
+
+```
+You are a reuse analysis agent for plan "{plan_name}".
+
+Your job is to examine the existing codebase through the lens of the chosen approach
+and identify everything that already exists which can serve the implementation — so we
+build only what's truly new.
+
+Read these documents first:
+- approach.md (the chosen approach — this is your lens)
+- findings_summary.md (what was discovered about the problem area)
+- All findings/*.md (detailed module-level findings)
+- test_plan.md (the test scenarios we need to satisfy)
+- scope.md (which modules are in play)
+
+Then investigate the codebase with these specific questions:
+
+### 1. Existing Functions & Utilities
+For each capability the approach requires, search for functions that already do it
+(or do 80%+ of it). Check:
+- Utility modules, helper files, shared libraries
+- Similar features elsewhere in the codebase that solved analogous problems
+- Base classes, mixins, or HOCs that provide needed behavior
+- Built-in framework features that aren't being leveraged
+
+### 2. Patterns Already Established
+Identify patterns in the codebase that the approach should follow rather than reinvent:
+- How similar features were built (conventions, file organization, naming)
+- Existing abstractions the approach can plug into
+- Shared infrastructure (event systems, middleware, pipelines) the approach should use
+- Configuration or registry patterns that new code should join, not duplicate
+
+### 3. Code That's Almost Right
+Look for code that's close to what's needed but currently:
+- Failing for a specific reason (fix > rebuild)
+- Missing a small extension to cover the new use case
+- Doing the right thing but in the wrong place or with the wrong interface
+- Handling a subset of what we need (extend > rewrite)
+
+### 4. Reuse Risks
+Flag anything that looks reusable but has hidden problems:
+- Functions that look right but have subtle behavior differences
+- Shared code that would need changes affecting other consumers
+- Abstractions that are too rigid to extend without breaking changes
+- Technical debt that would make reuse more expensive than building new
+
+For each finding, provide:
+- **What exists**: File path, function/class name, what it does
+- **How it serves the approach**: Which part of the approach it maps to
+- **Recommendation**: REUSE (use as-is), EXTEND (add to it), ADAPT (modify for our needs), or AVOID (looks reusable but isn't)
+- **Effort comparison**: Rough comparison of reuse effort vs building new
+
+Write your findings to reuse_analysis.md.
+```
+
+## Step 2: Write Output Documents
+
+### Agent A creates `critique_report.md`:
+
+```markdown
+---
+created_at: {timestamp}
+approach: {chosen approach name}
+status: draft
+---
+
+# Approach Critique: {Plan Name}
+
+## Verdict
+
+{One sentence: Does the approach hold up, need adjustments, or need rethinking?}
+
+**Blocking Issues**: {count}
+**Concerns**: {count}
+**Notes**: {count}
+
+## Blocking Issues
+
+{Issues that must be resolved before proceeding to detailed planning.
+If none: "No blocking issues found."}
+
+### {Issue Title}
+
+- **Issue**: {what's wrong}
+- **Evidence**: {code paths, scenarios, or configurations that demonstrate it}
+- **Severity**: BLOCKING
+- **Suggestion**: {what to do about it}
+
+## Concerns
+
+{Issues that should be addressed in the detailed plan but don't block planning.}
+
+### {Issue Title}
+
+- **Issue**: {what's wrong}
+- **Evidence**: {code paths, scenarios, or configurations}
+- **Severity**: CONCERN
+- **Suggestion**: {what to do about it}
+
+## Notes
+
+{Observations worth knowing but not actionable right now.}
+
+- {note}
+
+## Simpler Alternatives Considered
+
+| Approach Step | Simpler Alternative | Why It Would/Wouldn't Work |
+|---------------|---------------------|---------------------------|
+| {step} | {alternative} | {analysis} |
+
+## Risk Summary
+
+| Risk | Blast Radius | Rollback Option | Mitigation |
+|------|-------------|-----------------|------------|
+| {risk} | {who/what is affected} | {how to undo} | {what the plan should include} |
+```
+
+### Agent B creates `reuse_analysis.md`:
+
+```markdown
+---
+created_at: {timestamp}
+approach: {chosen approach name}
+status: draft
+---
+
+# Reuse Analysis: {Plan Name}
+
+## Summary
+
+{One paragraph: how much of the approach is served by existing code vs. truly new work}
+
+**Reuse Score**: {percentage of approach steps served by existing code — rough estimate}
+
+## Reusable Assets
+
+### REUSE (use as-is)
+
+| Asset | Location | Serves | Notes |
+|-------|----------|--------|-------|
+| {function/class name} | {file:line} | {which part of approach} | {any caveats} |
+
+### EXTEND (add to existing)
+
+| Asset | Location | Serves | Extension Needed |
+|-------|----------|--------|------------------|
+| {function/class name} | {file:line} | {which part of approach} | {what to add} |
+
+### ADAPT (modify for our needs)
+
+| Asset | Location | Serves | Adaptation Needed | Impact |
+|-------|----------|--------|-------------------|--------|
+| {function/class name} | {file:line} | {which part of approach} | {what to change} | {other consumers affected?} |
+
+## Patterns to Follow
+
+| Pattern | Example Location | How to Apply |
+|---------|------------------|--------------|
+| {pattern name} | {file:line} | {how the approach should use this pattern} |
+
+## Build-New List
+
+{Capabilities the approach requires that genuinely have no existing analog — these are the only things that need to be built from scratch}
+
+| Capability | Why New | Approach Step |
+|------------|---------|---------------|
+| {what} | {why nothing existing serves this} | {which step} |
+
+## Reuse Risks
+
+| Asset | Risk | Recommendation |
+|-------|------|----------------|
+| {what looks reusable but isn't} | {why} | AVOID — {what to do instead} |
+
+## Impact on Approach
+
+{Any refinements to the approach based on what was found. For example: "Step 3 of the approach calls for a new validation pipeline, but the existing `ValidationChain` in `src/validation/chain.ts` already handles this pattern — the approach should plug into it rather than creating a parallel system."}
+```
+
+## Step 3: Resolve Blocking Issues (if any)
+
+If the critique agent found BLOCKING issues:
+1. Present them to the user immediately (before the full checkpoint)
+2. Determine if the approach needs revision (return to Phase 5) or if the blocking issue can be addressed as an approach amendment
+3. If amending: update approach.md with the fix, note the critique finding that prompted it
+4. Re-run only the affected agent if the amendment is substantial
+
+## Step 4: Update Cold Start Doc
+
+Update `context_scratch_pad.md`:
+- Current phase: 6 - Approach Stress Test
+- Critique verdict and any blocking issues
+- Reuse score and key assets identified
+- Any approach amendments made
+
+## Step 5: Checkpoint (ALWAYS DISCUSS)
+
+Present the combined findings from both agents:
+
+> "Before writing the detailed plan, two agents stress-tested the approach:
+>
+> **Critique Verdict**: {verdict}
+> {If blocking issues were found and resolved, note what was amended}
+>
+> **Concerns** ({count}):
+> - {concern}: {suggestion}
+>
+> **Simpler alternatives identified**:
+> - {any steps where a simpler path exists}
+>
+> **Reuse Score**: {X}% of the approach is served by existing code
+>
+> **Reuse as-is** ({count}):
+> - {asset}: {what it does, which approach step it serves}
+>
+> **Extend** ({count}):
+> - {asset}: {what to add}
+>
+> **Build new** ({count}):
+> - {capability}: {why nothing existing covers this}
+>
+> Review `critique_report.md` and `reuse_analysis.md` for full details.
+>
+> Do the concerns need to be addressed? Did I miss any existing code we should leverage?
+> Are there flaws in the approach that the critique agent didn't catch?"
+
+**Wait for the user to respond.** They may:
+- Confirm and you proceed
+- Raise additional concerns about the approach
+- Point out existing code the reuse agent missed
+- Disagree with a reuse recommendation
+- Share historical context ("we tried that before and it failed because...")
+- Request approach revision based on findings
+
+**If user approves**: Proceed to Phase 7
+**If user raises new concerns**: Update critique_report.md, determine if approach needs revision
+**If user adds reuse targets**: Update reuse_analysis.md, confirm, proceed
+**If user flags reuse risks**: Move items from REUSE/EXTEND to AVOID, confirm, proceed
+**If critique findings require approach revision**: Return to Phase 5 to amend the approach, then re-run Phase 6
+
+**Lesson capture**: If the user's feedback contained a correction to your assumptions, a reusable codebase insight, or context about what has failed before, add an entry to `{plan_folder}/lessons.md` under the appropriate section. Keep entries to 2-3 sentences with enough context to be useful in isolation. Not every correction is a lesson -- only capture insights that would help a fresh agent on a different plan.
+
+---
+
+# PHASE 7: DETAILED PLANNING
 
 **Goal**: Full implementation specification.
 
@@ -1334,8 +1666,15 @@ Read all previous documents:
 - All findings/*.md
 - test_plan.md
 - approach.md
+- critique_report.md
+- reuse_analysis.md
 
 Create detailed_plan.md with complete implementation specification.
+The plan MUST:
+- Address all CONCERN-level findings from the critique report
+- Incorporate the reuse analysis — preferring REUSE and EXTEND recommendations
+  over building new code wherever the analysis supports it
+- Note any BLOCKING findings that were resolved and how
 ```
 
 ## Step 2: Write Detailed Plan
@@ -1413,7 +1752,7 @@ See `test_plan.md` for the complete test plan with plain English test scenarios,
 ## Step 3: Update Cold Start Doc
 
 Update `context_scratch_pad.md`:
-- Current phase: 6 - Detailed Planning
+- Current phase: 7 - Detailed Planning
 - Summary of plan sections
 - Key implementation notes
 
@@ -1452,7 +1791,7 @@ Present the detailed plan and invite feedback:
 - Question implementation details
 - Suggest simplifications
 
-**If user approves**: Proceed to Phase 7
+**If user approves**: Proceed to Phase 8
 **If user has feedback**: Incorporate into detailed_plan.md, re-present key changes, confirm
 **If plan has fundamental issues**: May need to revisit approach
 
@@ -1460,7 +1799,7 @@ Present the detailed plan and invite feedback:
 
 ---
 
-# PHASE 7: TASK BREAKDOWN
+# PHASE 8: TASK BREAKDOWN
 
 **Goal**: Convert plan to executable checklist with dependencies.
 
@@ -1472,6 +1811,8 @@ You are breaking down the detailed plan into executable tasks.
 Read:
 - detailed_plan.md
 - approach.md (for risks/dependencies)
+- critique_report.md (for risk mitigations and concerns to address)
+- reuse_analysis.md (for reuse/extend/build-new decisions)
 - test_plan.md (for test-first task ordering)
 
 Create a task list that:
@@ -1563,7 +1904,7 @@ status: ready
 ## Step 3: Update Cold Start Doc
 
 Update `context_scratch_pad.md`:
-- Current phase: 7 - Task Breakdown
+- Current phase: 8 - Task Breakdown
 - Task summary (phases, counts)
 - First tasks to start
 
@@ -1579,14 +1920,14 @@ Always present the task breakdown to the user. This is the last chance to adjust
 >
 > Ready to finalize?"
 
-**If user approves**: Proceed to Phase 8
+**If user approves**: Proceed to Phase 9
 **If user has feedback**: Adjust tasks, re-checkpoint
 
 **Lesson capture**: If the user's feedback contained a correction to your assumptions, a reusable codebase insight, or context about what has failed before, add an entry to `{plan_folder}/lessons.md` under the appropriate section. Keep entries to 2-3 sentences with enough context to be useful in isolation. Not every correction is a lesson -- only capture insights that would help a fresh agent on a different plan.
 
 ---
 
-# PHASE 8: FINALIZE
+# PHASE 9: FINALIZE
 
 **Goal**: Prepare cold start doc and mark planning complete.
 
@@ -1624,6 +1965,8 @@ last_updated: {timestamp}
 - [x] findings_summary.md - Complete
 - [x] test_plan.md - Complete ({N} test scenarios)
 - [x] approach.md - Complete
+- [x] critique_report.md - Complete ({N} blocking, {N} concerns)
+- [x] reuse_analysis.md - Complete ({X}% reuse score)
 - [x] detailed_plan.md - Complete
 - [x] tasks.md - Complete
 - [x] lessons.md - Complete (captures from planning checkpoints)
@@ -1658,6 +2001,7 @@ If you're starting fresh or after context loss:
 - {timestamp}: Discovery complete
 - {timestamp}: Test plan complete ({N} scenarios)
 - {timestamp}: Approach decided
+- {timestamp}: Approach stress test complete (critique: {verdict}, reuse: {X}%)
 - {timestamp}: Detailed plan complete
 - {timestamp}: Tasks defined (test-first)
 - {timestamp}: PLANNING COMPLETE - Ready for implementation
@@ -1666,7 +2010,7 @@ If you're starting fresh or after context loss:
 ## Step 2: Update Plan State
 
 Update `_plan_state.json`:
-- `current_phase`: 8
+- `current_phase`: 9
 - All phase statuses: "complete"
 - Add final checkpoint timestamp
 - Add implementation fields (for go-time):
@@ -1697,6 +2041,8 @@ Present completion to user:
 > - findings_summary.md (+ {N} detailed findings)
 > - test_plan.md ({N} test scenarios, {M} individual tests)
 > - approach.md
+> - critique_report.md ({N} blocking, {N} concerns)
+> - reuse_analysis.md ({X}% reuse score)
 > - detailed_plan.md
 > - tasks.md (test-first: Phase 1 writes all tests before implementation)
 > - context_scratch_pad.md
@@ -1714,12 +2060,12 @@ Present completion to user:
 
 After Phase 1, adjust subsequent phases based on problem type:
 
-| Problem Type | Discovery | Test Architecture | Approach | Detailed Plan | Tasks |
-|--------------|-----------|-------------------|----------|---------------|-------|
-| Bug | **Heavy** | **Heavy** | Light | Light | Light |
-| Feature | Medium | Medium | **Heavy** | **Heavy** | Medium |
-| Refactor | Light | Medium | Medium | **Heavy** | **Heavy** |
-| New System | **Heavy** | Medium | **Heavy** | **Heavy** | Medium |
+| Problem Type | Discovery | Test Architecture | Approach | Stress Test | Detailed Plan | Tasks |
+|--------------|-----------|-------------------|----------|-------------|---------------|-------|
+| Bug | **Heavy** | **Heavy** | Light | **Heavy** | Light | Light |
+| Feature | Medium | Medium | **Heavy** | **Heavy** | **Heavy** | Medium |
+| Refactor | Light | Medium | Medium | **Heavy** | **Heavy** | **Heavy** |
+| New System | **Heavy** | Medium | **Heavy** | Medium | **Heavy** | Medium |
 
 **Heavy** = More subagents, more detail, more checkpoints
 **Light** = Streamlined, fewer questions, faster progression

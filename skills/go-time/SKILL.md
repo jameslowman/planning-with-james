@@ -48,7 +48,7 @@ planning → planned → active ⇄ paused → completed
 | State | Meaning | Who sets it |
 |-------|---------|-------------|
 | `planning` | Still in planning phases | `/plan` skill |
-| `planned` | Planning complete, ready for implementation | `/plan` skill (Phase 7) |
+| `planned` | Planning complete, ready for implementation | `/plan` skill (Phase 9) |
 | `active` | Currently being implemented | `/go-time` on activation |
 | `paused` | Implementation paused, safe to do other work | `/go-time pause` or user request |
 | `completed` | All tasks done | `/go-time` when final checklist passes |

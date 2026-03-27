@@ -28,6 +28,8 @@ This document maintains continuity across sessions. **If you're resuming after a
 - [ ] findings_summary.md - Not started
 - [ ] test_plan.md - Not started
 - [ ] approach.md - Not started
+- [ ] critique_report.md - Not started
+- [ ] reuse_analysis.md - Not started
 - [ ] detailed_plan.md - Not started
 - [ ] tasks.md - Not started
 

@@ -303,7 +303,7 @@ keywords: [oauth, jwt, session]
 
 ### `/planning-with-james:plan`
 
-The planning skill guides users through a structured 7-phase process:
+The planning skill guides users through a structured 10-phase process:
 
 ```
 Phase 0: Setup              → Create folder, copy templates, register plan
@@ -312,9 +312,10 @@ Phase 2: Scoping            → Identify modules, set boundaries (knowledge-firs
 Phase 3: Discovery          → Parallel deep exploration (Opus subagents)
 Phase 4: Test Architecture  → Map user flows to test scenarios
 Phase 5: Approach           → Decide on technical direction
-Phase 6: Detailed Plan      → Full implementation specification
-Phase 7: Task Breakdown     → Executable checklist with dependencies
-Phase 8: Finalize           → Cold start doc ready for implementation
+Phase 6: Approach Stress Test → Critique the approach + find what already exists
+Phase 7: Detailed Plan      → Full implementation specification
+Phase 8: Task Breakdown     → Executable checklist with dependencies
+Phase 9: Finalize           → Cold start doc ready for implementation
 ```
 
 ### Key Design Decisions
@@ -328,8 +329,9 @@ The system always stops at:
 - Phase 3 (discovery) - "Does this match your understanding? Is this data correct?"
 - Phase 4 (test architecture) - "Do these test scenarios capture the behavior you described?"
 - Phase 5 (approach) - "Do you see a better way? Any constraints I should know?"
-- Phase 6 (detailed plan) - "Any concerns before I break this into tasks?"
-- Phase 7 (task breakdown) - Last chance before implementation
+- Phase 6 (stress test) - "Here's what a fresh pair of eyes found — flaws in the approach and existing code we should leverage."
+- Phase 7 (detailed plan) - "Any concerns before I break this into tasks?"
+- Phase 8 (task breakdown) - Last chance before implementation
 
 **Why not auto-advance?** Initial designs allowed auto-advancing through phases when "scope was obvious" or "only one approach existed." In practice, this led to:
 1. Discovery agents reporting wrong data (stale timing numbers) that went uncorrected
@@ -343,12 +345,12 @@ The user is the best source of truth for: real performance numbers, business con
 **Problem Type Adaptation**
 The system adapts its weights based on problem type:
 
-| Problem Type | Discovery | Approach | Detailed Plan | Tasks |
-|--------------|-----------|----------|---------------|-------|
-| Bug | Heavy | Light | Light | Light |
-| Feature | Medium | Heavy | Heavy | Medium |
-| Refactor | Light | Medium | Heavy | Heavy |
-| New System | Heavy | Heavy | Heavy | Medium |
+| Problem Type | Discovery | Approach | Stress Test | Detailed Plan | Tasks |
+|--------------|-----------|----------|-------------|---------------|-------|
+| Bug | Heavy | Light | **Heavy** | Light | Light |
+| Feature | Medium | Heavy | **Heavy** | Heavy | Medium |
+| Refactor | Light | Medium | **Heavy** | Heavy | Heavy |
+| New System | Heavy | Heavy | Medium | Heavy | Medium |
 
 **Scoping Before Discovery**
 Phase 2 (Scoping) uses the knowledge graph to identify which modules are relevant BEFORE spawning discovery agents. This prevents unfocused exploration.
@@ -392,7 +394,7 @@ planning → planned → active ⇄ paused → completed
 | State | Meaning | Who sets it |
 |-------|---------|-------------|
 | `planning` | Still in planning phases | `/plan` skill |
-| `planned` | Planning complete, ready for implementation | `/plan` skill (Phase 8) |
+| `planned` | Planning complete, ready for implementation | `/plan` skill (Phase 9) |
 | `active` | Currently being implemented | `/go-time` on activation |
 | `paused` | Implementation paused, safe to do other work | `/go-time pause` or user request |
 | `completed` | All tasks done | `/go-time` when final checklist passes |
@@ -812,7 +814,7 @@ This is the test plan's most important property. Code-level test specifications 
 
 ### Task Ordering: Tests Before Implementation
 
-Phase 7 (Task Breakdown, formerly Phase 6) now mandates that Phase 1 of every task list is "Test Foundation" -- writing all tests from `test_plan.md` before any implementation begins:
+Phase 8 (Task Breakdown, formerly Phase 6) now mandates that Phase 1 of every task list is "Test Foundation" -- writing all tests from `test_plan.md` before any implementation begins:
 
 ```
 Phase 1: Test Foundation
@@ -835,12 +837,13 @@ For bugs, the Phase 1 checkpoint verifies that tests **fail** -- this proves the
 
 The new phase shifts everything after Discovery:
 
-| Before | After |
-|--------|-------|
-| Phase 4: Approach | Phase 5: Approach |
-| Phase 5: Detailed Plan | Phase 6: Detailed Plan |
-| Phase 6: Task Breakdown | Phase 7: Task Breakdown |
-| Phase 7: Finalize | Phase 8: Finalize |
+| Before (v2) | After (v3) | After (v3.1) |
+|-------------|------------|--------------|
+| Phase 4: Approach | Phase 5: Approach | Phase 5: Approach |
+| — | — | Phase 6: Approach Stress Test (new) |
+| Phase 5: Detailed Plan | Phase 6: Detailed Plan | Phase 7: Detailed Plan |
+| Phase 6: Task Breakdown | Phase 7: Task Breakdown | Phase 8: Task Breakdown |
+| Phase 7: Finalize | Phase 8: Finalize | Phase 9: Finalize |
 
 ### Problem Type Adaptation
 
@@ -852,6 +855,83 @@ Test Architecture weight varies by problem type:
 | Feature | Medium | Map user journey flows to test scenarios. Establish the test foundation. |
 | Refactor | Medium | Regression guards are critical -- prove existing behavior doesn't change. |
 | New System | Medium | Less existing test infrastructure to analyze, but flows guide the test foundation. |
+
+---
+
+## Approach Stress Test (v3.1.0 — New Phase)
+
+### The Problem: Two Compounding Biases
+
+Two biases compound in agentic planning and neither is addressed by the existing phases:
+
+1. **Confirmation bias**: The agent that chose the approach in Phase 5 has investment in it. It won't naturally look for reasons it's wrong. The user checkpoint helps, but the user knows the business — they may not catch a technical flaw hiding three call stacks deep.
+
+2. **Build-new bias**: Agentic AI prefers creating new code over leveraging what exists. Discovery (Phase 3) maps the problem area, but runs *before* an approach is decided. Once the approach is locked, nobody asks "given this specific approach, what already exists that serves it?"
+
+Real example: In one plan, the approach was "fix the wrong URL string." A critique agent with fresh eyes found that the codebase already had account-type detection in the E2E tests — the real problem wasn't "wrong string" but "not detecting which string to use." The approach was solving a symptom, not the root cause.
+
+### Phase 6: Approach Stress Test (Two Agents, One Phase)
+
+A new phase between Approach (Phase 5) and Detailed Plan (Phase 7). Two agents run in parallel:
+
+**Agent A (Critique)** — a skeptical reviewer with no stake in the approach:
+- Verifies assumptions against actual code (does it really work that way?)
+- Walks through edge cases (different user types, environments, concurrent execution)
+- Looks for simpler alternatives (is the approach over-engineering?)
+- Assesses risk (blast radius, rollback options, breaking changes)
+- Classifies findings as BLOCKING, CONCERN, or NOTE
+
+**Agent B (Reuse)** — searches the codebase through the lens of the approach:
+- Finds functions/utilities that already do what the approach needs (or 80%+ of it)
+- Identifies patterns the approach should follow rather than reinvent
+- Spots code that's almost right (fix > rebuild)
+- Flags reuse risks (looks reusable but isn't)
+- Classifies assets as REUSE, EXTEND, ADAPT, or AVOID
+
+This placement is deliberate:
+- **After Approach**: Both agents need to know *what* we're building before they can critique it or search for existing assets. Running before the approach is decided would be unfocused.
+- **Before Detailed Plan**: Both agents' findings directly shape the implementation spec. Blocking issues get resolved before we invest in detailed planning. Reuse findings turn "build new" into "extend existing." Concerns get addressed in the plan rather than discovered during implementation.
+
+### The Output Documents
+
+**`critique_report.md`**: Verdict, blocking issues (with evidence and suggestions), concerns, notes, simpler alternatives, and a risk summary with blast radius and rollback options.
+
+**`reuse_analysis.md`**: Reuse score, asset inventory (REUSE/EXTEND/ADAPT/AVOID with file paths), patterns to follow, a Build-New List (the *only* things that should appear as new code), and impact on the approach.
+
+### How It Feeds Into Later Phases
+
+Phase 7 (Detailed Plan) must read both documents and:
+- Address all CONCERN-level findings from the critique
+- Incorporate reuse recommendations — preferring REUSE/EXTEND over building new
+- Note any BLOCKING findings that were resolved and how
+
+Phase 8 (Task Breakdown) also reads both — critique concerns may need dedicated tasks, and reuse decisions affect task size and dependencies.
+
+### Blocking Issue Resolution
+
+If the critique agent finds BLOCKING issues, they're presented to the user *before* the full checkpoint. The response can be:
+- Amend the approach (update approach.md, note what prompted it)
+- Return to Phase 5 if the approach is fundamentally flawed
+- Re-run only the affected agent if the amendment is substantial
+
+### Problem Type Adaptation
+
+| Type | Critique Weight | Reuse Weight | Why |
+|------|----------------|--------------|-----|
+| Bug | **Heavy** | Medium | Bugs often stem from wrong assumptions. Critique verifies the approach targets root cause, not symptom. Existing code is often "almost right." |
+| Feature | **Heavy** | **Heavy** | Highest risk of both over-engineering and unnecessary new code. Full treatment on both fronts. |
+| Refactor | Medium | **Heavy** | Approach is usually sound for refactors, but reuse analysis is critical — the whole point is restructuring what exists. |
+| New System | Medium | Light | Less existing code to reuse, but critique catches architectural assumptions early when stakes are highest. |
+
+### Phase Renumbering
+
+This phase shifts everything after Approach:
+
+| Before (v3.0) | After (v3.1) |
+|----------------|--------------|
+| Phase 6: Detailed Plan | Phase 7: Detailed Plan |
+| Phase 7: Task Breakdown | Phase 8: Task Breakdown |
+| Phase 8: Finalize | Phase 9: Finalize |
 
 ---
 

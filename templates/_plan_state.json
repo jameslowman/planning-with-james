@@ -11,9 +11,10 @@
     "3_discovery": "pending",
     "4_test_architecture": "pending",
     "5_approach": "pending",
-    "6_detailed_plan": "pending",
-    "7_tasks": "pending",
-    "8_finalize": "pending"
+    "6_stress_test": "pending",
+    "7_detailed_plan": "pending",
+    "8_tasks": "pending",
+    "9_finalize": "pending"
   },
   "problem_type": null,
   "in_scope_modules": [],
