@@ -970,6 +970,34 @@ Agents (both orchestrators and subagents) must use the Edit and Write tools for 
 
 **Where enforced**: A NON-NEGOTIABLE rule at the top of both `create-knowledge` and `update-knowledge` skills, plus a `## CRITICAL` section in every subagent prompt template. Both layers are needed because the orchestrator can also make this mistake, and subagents don't read the skill's top-level rules.
 
+### Agent Permission Mode (bypassPermissions)
+
+Background agents spawned by the plugin's skills were silently failing. The failure mode:
+
+1. Skills spawn agents with `run_in_background: true`
+2. Background agents pre-approve permissions at spawn time
+3. Any tool call NOT pre-approved is **auto-denied silently** -- the agent doesn't error or prompt, the tool call just returns a failure and the agent continues
+4. The agent burns through its `max_turns` doing research (Read/Glob/Grep work fine) but every Write/Edit call fails silently
+5. The agent "completes" having done all its research but written zero output files
+6. The orchestrator polls for `_result.json` files that will never exist
+7. After 20 minutes (the timeout), the user discovers all agent work was lost
+
+**The fix**: Every agent spawn across all skills must include `mode: "bypassPermissions"`. This skips permission checks entirely so background agents can actually write their output files.
+
+**Why `bypassPermissions` and not other modes**:
+- `default`: prompts for permission -- impossible for background agents with no one to approve
+- `acceptEdits`: auto-accepts Edit/Write but may still block Bash (needed for git commands)
+- `dontAsk`: auto-denies tools not explicitly pre-approved -- the WORST option for background agents
+- `plan`: read-only -- agents can't write at all
+- `auto`: AI-based classifier, enterprise-only
+- `bypassPermissions`: skips all checks -- the only mode that guarantees background agents can write
+
+**Security posture**: The agents are already constrained by their prompts (only write to `.claude/planning-with-james/`, only use Bash for git commands). The permission mode is a safety net that was inadvertently blocking the designed behavior. `bypassPermissions` restores the intended agent capabilities.
+
+**Where enforced**: A NON-NEGOTIABLE rule at the top of every skill that spawns agents (`create-knowledge`, `update-knowledge`, `plan`, `epic`), plus `mode: "bypassPermissions"` on every explicit agent spawn parameter list. Both layers are needed -- the NON-NEGOTIABLE catches any agent spawns that don't have explicit parameter lists (e.g., "same prompt as Standard Mode Phase 2" references).
+
+**Future consideration -- Teams**: Claude Code has an experimental Teams system (TeamCreate) that provides a more robust coordination model: shared task lists, peer-to-peer messaging between agents, and automatic notifications instead of filesystem polling. This could replace the fire-and-forget + poll pattern for parallel agent phases (create-knowledge Phase 2 waves, plan Phase 3 discovery, plan Phase 4 test architecture). Teams would eliminate the polling loop entirely and provide better failure detection. Deferred until the permission fix is validated.
+
 ### Parallel vs Linear Subagents
 
 Launching multiple Task agents in parallel is critical for initial indexing (Phase 2 of create-knowledge), where there's no existing state to load and context cost is just the agent outputs.

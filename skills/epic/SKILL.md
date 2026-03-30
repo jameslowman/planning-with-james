@@ -16,6 +16,11 @@ An epic is a large initiative that breaks down into multiple sequential plans, e
 
 ---
 
+**NON-NEGOTIABLE: AGENT PERMISSIONS**
+ALL agents you spawn (Task tool) MUST include `mode: "bypassPermissions"`. Background agents that hit permission prompts will have their Write/Edit calls **silently denied** — they burn through turns doing research but never write output files. This destroys all agent work. Always include this parameter on every agent spawn.
+
+---
+
 ## MANDATORY: Knowledge Graph Before Source Code
 
 When exploring code for any reason during epic creation or review, you MUST read the knowledge graph first:
@@ -434,7 +439,7 @@ Also read:
 
 ## Step 3: Synthesize via Opus Agent
 
-Spawn a Task agent (`subagent_type`: "general-purpose", `model`: "opus") to synthesize the review:
+Spawn a Task agent (`subagent_type`: "general-purpose", `model`: "opus", `mode`: "bypassPermissions") to synthesize the review:
 
 ```
 You are conducting an EPIC REVIEW for the "{epic_name}" epic.

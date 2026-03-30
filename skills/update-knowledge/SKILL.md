@@ -19,6 +19,9 @@ The orchestrator (you) should hold minimal state. Do NOT read all module `_index
 **NON-NEGOTIABLE: LINEAR EXECUTION**
 Process modules ONE AT A TIME. Do NOT launch parallel subagents for module updates. Each module update should: spawn agent -> receive brief summary -> update progress -> next. This prevents context exhaustion.
 
+**NON-NEGOTIABLE: AGENT PERMISSIONS**
+ALL agents you spawn (Task tool) MUST include `mode: "bypassPermissions"`. Background agents that hit permission prompts will have their Write/Edit calls **silently denied** — they burn through turns doing research but never write output files. The orchestrator then polls for result files that will never exist. This destroys all agent work. Always include this parameter on every agent spawn, background or foreground.
+
 **NON-NEGOTIABLE: NO BASH FOR FILE MODIFICATIONS**
 Do NOT use Bash to modify knowledge files. No `sed`, `awk`, `for` loops, `echo` redirection, or `cat` heredocs for writing or editing files. ALWAYS use the Read → Edit or Read → Write tools for file changes. Bash is ONLY permitted for: `git` commands (`git diff`, `git rev-parse`, `git log`) and running project tools (linters, test runners). This applies to you (the orchestrator) AND to all subagents you spawn — include this rule in every subagent prompt. Violating this blocks unattended operation with permission prompts that require manual approval.
 
@@ -113,6 +116,7 @@ git diff --name-status {from_commit}..{to_commit} -- {module_path}
 ### 2b. Spawn ONE Task agent:
 - `subagent_type`: "general-purpose"
 - `model`: "opus"
+- `mode`: "bypassPermissions"
 
 **Subagent prompt:**
 
@@ -178,7 +182,7 @@ After receiving the agent's JSON response, update `_update_progress.json`:
 
 ### 2d. Handle new modules
 
-For each entry in `new_modules_to_create`, spawn ONE agent at a time:
+For each entry in `new_modules_to_create`, spawn ONE agent at a time (`mode`: "bypassPermissions"):
 
 ```
 You are creating knowledge for a NEW module discovered at "{path}".
@@ -242,6 +246,7 @@ For each module in `cascade_needed` that is NOT in `cascade_completed`:
 Spawn ONE Task agent:
 - `subagent_type`: "general-purpose"
 - `model`: "opus"
+- `mode`: "bypassPermissions"
 
 ```
 You are verifying knowledge for "{module_name}" because a connected module changed.
@@ -272,7 +277,7 @@ Update `cascade_completed` in progress file after each.
 
 ### 4a. Rebuild graph
 
-Spawn ONE Task agent:
+Spawn ONE Task agent (`subagent_type`: "general-purpose", `model`: "opus", `mode`: "bypassPermissions"):
 
 ```
 You are rebuilding the knowledge graph after updates.
@@ -393,7 +398,7 @@ Write `_update_progress.json` with the plan:
 
 ## Phase 5: Execute (LINEAR, one module at a time)
 
-For each target module, spawn ONE Task agent with appropriate prompt based on intent type:
+For each target module, spawn ONE Task agent (`mode`: "bypassPermissions") with appropriate prompt based on intent type:
 
 ### Deep Dive (single module):
 ```
@@ -480,7 +485,7 @@ Write all changes to disk.
 Return ONLY: {"module_id": "{module_id}", "interface_changed": true|false, "dependencies_changed": true|false, "summary": "One sentence about this module's role in the pipeline"}
 ```
 
-After ALL pipeline modules complete, spawn ONE MORE agent to create a flow document:
+After ALL pipeline modules complete, spawn ONE MORE agent (`mode`: "bypassPermissions") to create a flow document:
 
 ```
 You are creating a cross-cutting flow document for "{pipeline_name}".
@@ -507,7 +512,7 @@ Return ONLY: {"flow_file": "flows/{pipeline_name}.md", "summary": "One sentence"
 
 ### Correction, Business Context, Relationship Fix, New Area:
 
-Spawn ONE agent per module, with a prompt tailored to the intent (correction, context, etc.). Each agent:
+Spawn ONE agent per module (`mode`: "bypassPermissions"), with a prompt tailored to the intent (correction, context, etc.). Each agent:
 1. Reads existing knowledge first
 2. Makes targeted updates
 3. Writes to disk
@@ -683,19 +688,19 @@ No subagent needed.
 
 ### 3b. Fix incomplete modules
 For each module missing `_index.md` or `_refs.json`:
-- Spawn ONE agent to re-index the module (same prompt as Standard Mode Phase 2)
+- Spawn ONE agent (`mode`: "bypassPermissions") to re-index the module (same prompt as Standard Mode Phase 2)
 - Update progress file after completion
 
 ### 3c. Fix stale modules
 For each stale module:
 - Get changed files: `git diff --name-status {module_last_commit}..HEAD -- {module_path}`
 - If no files changed in this module, just update the frontmatter commit hash
-- If files changed, spawn ONE agent to update (same as Standard Mode Phase 2)
+- If files changed, spawn ONE agent (`mode`: "bypassPermissions") to update (same as Standard Mode Phase 2)
 - Update progress file after each
 
 ### 3d. Create missing modules
 For each codebase directory that should be a module:
-- Spawn ONE agent to create knowledge (same prompt as new module creation)
+- Spawn ONE agent (`mode`: "bypassPermissions") to create knowledge (same prompt as new module creation)
 - Update progress file after each
 
 ### 3e. Fix hierarchy problems
@@ -703,9 +708,9 @@ Before rebuilding the graph, fix hierarchy issues found by Check 7:
 
 **Orphaned children** (parent doesn't exist): Set `parent` to `null`, making them top-level modules.
 
-**Empty containers** (container with no children): Reclassify as `"leaf"`. Spawn ONE agent to rewrite the `_index.md` from lightweight container format to full leaf format by reading source code.
+**Empty containers** (container with no children): Reclassify as `"leaf"`. Spawn ONE agent (`mode`: "bypassPermissions") to rewrite the `_index.md` from lightweight container format to full leaf format by reading source code.
 
-**Leaves with children** (leaf that has entries listing it as parent): Reclassify as `"container"`. Spawn ONE agent to rewrite the `_index.md` from full leaf format to lightweight container format.
+**Leaves with children** (leaf that has entries listing it as parent): Reclassify as `"container"`. Spawn ONE agent (`mode`: "bypassPermissions") to rewrite the `_index.md` from full leaf format to lightweight container format.
 
 **Broken parent references** (parent exists but doesn't list this child): Add the child to the parent's `children` array in `_discovery.json` and update the parent's `_index.md` frontmatter.
 
@@ -719,7 +724,7 @@ When Check 7 detected modules without `module_type` fields ("Legacy format"), ru
 
 1. Read `_discovery.json` with the Read tool. For each module missing `module_type`/`parent`/`children` fields, add `module_type: "pending"`, `parent: null`, `children: []`. Write the updated JSON back with the Write tool. Do NOT use Bash for this — use Read → modify → Write.
 
-2. For each module, spawn ONE classification agent (linear, one at a time):
+2. For each module, spawn ONE classification agent (linear, one at a time, `mode`: "bypassPermissions"):
 
 ```
 You are classifying the "{module_name}" module at "{module_path}" as LEAF or CONTAINER.
@@ -758,7 +763,7 @@ Then read the source code at {module_path}.
    - CONTAINER results: mark as classified, add children as `pending` in `_discovery.json`
    - Repeat for newly added pending children until no pending modules remain
 
-4. For new children (didn't exist before), spawn ONE agent per child to create full documentation (same as create-knowledge Phase 2 leaf prompt).
+4. For new children (didn't exist before), spawn ONE agent per child (`mode`: "bypassPermissions") to create full documentation (same as create-knowledge Phase 2 leaf prompt).
 
 5. After all waves complete, proceed to graph rebuild (step 3g) which will generate containment edges.
 
@@ -768,7 +773,7 @@ This lets users run `/planning-with-james:update-knowledge repair` to upgrade an
 
 ### 3g. Fix graph
 After all module and hierarchy fixes complete:
-- Spawn ONE agent to rebuild `_graph.json` from all `_refs.json` files AND `_discovery.json` hierarchy (generate `contains` edges from parent/children relationships)
+- Spawn ONE agent (`mode`: "bypassPermissions") to rebuild `_graph.json` from all `_refs.json` files AND `_discovery.json` hierarchy (generate `contains` edges from parent/children relationships)
 - Include `module_type` and `parent` fields on all nodes
 - Update `_discovery.json`
 - Update `_overview.md` (include `leaf_modules`, `container_modules`, `max_depth` in frontmatter and hierarchy tree in module map)

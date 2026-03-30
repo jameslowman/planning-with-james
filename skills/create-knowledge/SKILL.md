@@ -13,6 +13,9 @@ All `.claude/planning-with-james/` paths in this skill are relative to the **cur
 **NON-NEGOTIABLE: PROGRESS TRACKING**
 After each phase completes, you MUST update `_create_progress.json` BEFORE starting the next phase. This file enables resume after context loss. If autocompact hits mid-creation, re-invoking this skill will pick up where you left off.
 
+**NON-NEGOTIABLE: AGENT PERMISSIONS**
+ALL agents you spawn (Task tool) MUST include `mode: "bypassPermissions"`. Background agents that hit permission prompts will have their Write/Edit calls **silently denied** — they burn through turns doing research but never write output files. The orchestrator then polls for result files that will never exist. This destroys all agent work. Always include this parameter on every agent spawn, background or foreground.
+
 **NON-NEGOTIABLE: NO BASH FOR FILE MODIFICATIONS**
 Do NOT use Bash to modify knowledge files. No `sed`, `awk`, `for` loops, `echo` redirection, or `cat` heredocs for writing or editing files. ALWAYS use the Read → Edit or Read → Write tools for file changes. Bash is ONLY permitted for: `git` commands (`git diff`, `git rev-parse`, `git log`) and running project tools (linters, test runners). This applies to you (the orchestrator) AND to all subagents you spawn — include this rule in every subagent prompt. Violating this blocks unattended operation with permission prompts that require manual approval.
 
@@ -156,6 +159,7 @@ while there are modules with module_type: "pending" in _discovery.json:
 For EACH pending module, spawn a Task agent with:
 - `subagent_type`: "general-purpose" (NOT "Explore" — Explore agents cannot write files)
 - `model`: "opus" (we want maximum depth)
+- `mode`: "bypassPermissions" (agents MUST bypass permission prompts or Write/Edit calls fail silently)
 - `run_in_background`: true
 - `max_turns`: 30 (background agents need enough turns to read files AND write results)
 
@@ -376,7 +380,7 @@ When no modules have `module_type: "pending"`, Phase 2 is done. Update progress:
 
 Now spawn subagents to map the relationships between modules.
 
-Launch a SINGLE Task agent with `subagent_type`: "general-purpose" and `model`: "opus" to:
+Launch a SINGLE Task agent with `subagent_type`: "general-purpose", `model`: "opus", and `mode`: "bypassPermissions" to:
 
 **CRITICAL**: Include in the agent prompt: "Use the Write and Edit tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to create or modify files. Bash is only for git commands."
 

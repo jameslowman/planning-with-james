@@ -1,5 +1,19 @@
 # Release Notes
 
+## v3.2.0
+
+### Fix: Background agents silently failing (permission mode)
+
+Background agents spawned by all skills were silently losing their work. The agents would complete their research (Read/Glob/Grep) but every Write/Edit call was auto-denied by the permission system — they'd burn through their turn budget and "complete" without writing any output files. The orchestrator would poll for result files that never existed, eventually timing out after 20 minutes with all agent work lost.
+
+**Root cause**: No agent spawn in any skill specified a `mode` parameter. Background agents pre-approve permissions at spawn time and auto-deny anything not pre-approved. Without an explicit permissive mode, Write/Edit calls failed silently.
+
+**Fixed**: All 22 agent spawn points across 5 skills now include `mode: "bypassPermissions"`. A NON-NEGOTIABLE rule is added to every skill that spawns agents as a safety net for agent spawns that reference other prompts.
+
+**Affected skills**: `create-knowledge` (Phase 2 wave agents, Phase 3 connectivity), `update-knowledge` (all modes — standard, guided, repair), `plan` (Phase 3 discovery, Phase 3 synthesis, Phase 4 test agents, Phase 4 synthesis, Phase 6 stress test agents), `epic` (review synthesis).
+
+---
+
 ## v3.0.0
 
 ### New: Test-First Architecture

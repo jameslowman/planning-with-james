@@ -13,6 +13,9 @@ All `.claude/planning-with-james/` paths in this skill are relative to the **cur
 **NON-NEGOTIABLE: ASK FIRST, WORK LATER**
 Your FIRST action must be to ask the user what they want to do. Do NOT read files, check registries, update knowledge, or do any work before asking. The user invoked /plan because they want to start planning with you.
 
+**NON-NEGOTIABLE: AGENT PERMISSIONS**
+ALL agents you spawn (Task tool) MUST include `mode: "bypassPermissions"`. Background agents that hit permission prompts will have their Write/Edit calls **silently denied** — they burn through turns doing research but never write output files. The orchestrator then polls for result files that will never exist. This destroys all agent work. Always include this parameter on every agent spawn, background or foreground.
+
 **NON-NEGOTIABLE: THIS SKILL ONLY READS THE KNOWLEDGE GRAPH, NEVER UPDATES IT**
 If the knowledge graph is missing or stale, inform the user and suggest they run `/planning-with-james:create-knowledge` or `/planning-with-james:update-knowledge`. Do NOT run those skills yourself.
 
@@ -577,6 +580,7 @@ Present your scope assessment and invite the user to correct or expand it:
 Based on `scope.md`, identify discovery areas. For each area, spawn a Task agent:
 - `subagent_type`: "general-purpose" (NOT "Explore" — Explore agents cannot write files)
 - `model`: "opus"
+- `mode`: "bypassPermissions" (agents MUST bypass permission prompts or Write/Edit calls fail silently)
 - `run_in_background`: true
 - `max_turns`: 30 (background agents need enough turns to read files AND write results)
 
@@ -689,7 +693,7 @@ Delete the `*_result.json` files after confirming all findings are written.
 
 ## Step 3: Synthesize Findings
 
-After all discovery agents have completed (confirmed by result files), spawn ONE synthesis agent (`subagent_type`: "general-purpose", `model`: "opus"):
+After all discovery agents have completed (confirmed by result files), spawn ONE synthesis agent (`subagent_type`: "general-purpose", `model`: "opus", `mode`: "bypassPermissions"):
 
 ```
 You are synthesizing discovery findings for the "{plan_name}" plan.
@@ -809,6 +813,7 @@ Based on `scope.md` and `findings_summary.md`, spawn background agents to invest
 For each agent:
 - `subagent_type`: "general-purpose"
 - `model`: "opus"
+- `mode`: "bypassPermissions"
 - `run_in_background`: true
 - `max_turns`: 30
 
@@ -1020,7 +1025,7 @@ After writing findings, write a result file:
 
 ### Additional Agents for Hard-to-Track Bugs
 
-If the problem type is `bug` AND the user couldn't provide clean reproduction flows (noted as a gap in `problem_description.md`), launch additional investigation agents:
+If the problem type is `bug` AND the user couldn't provide clean reproduction flows (noted as a gap in `problem_description.md`), launch additional investigation agents (`subagent_type`: "general-purpose", `model`: "opus", `mode`: "bypassPermissions", `run_in_background`: true, `max_turns`: 30):
 
 ```
 You are investigating a HARD-TO-TRACK BUG for the "{plan_name}" plan.
@@ -1066,7 +1071,7 @@ Read all result files after completion. Re-launch any failed agents. Delete resu
 
 ## Step 3: Synthesize into Test Plan
 
-Spawn ONE synthesis agent (`subagent_type`: "general-purpose", `model`: "opus"):
+Spawn ONE synthesis agent (`subagent_type`: "general-purpose", `model`: "opus", `mode`: "bypassPermissions"):
 
 ```
 You are creating a TEST PLAN for the "{plan_name}" plan.
@@ -1338,7 +1343,12 @@ Both agents run in parallel — same inputs, different lenses, one checkpoint.
 
 ## Step 1: Launch Both Agents in Parallel
 
-Launch two background Opus agents simultaneously with the full approach context.
+Launch two background Opus agents simultaneously with the full approach context. Both agents must use:
+- `subagent_type`: "general-purpose"
+- `model`: "opus"
+- `mode`: "bypassPermissions"
+- `run_in_background`: true
+- `max_turns`: 30
 
 ### Agent A: Approach Critique
 
