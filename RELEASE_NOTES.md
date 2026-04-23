@@ -1,5 +1,38 @@
 # Release Notes
 
+## v3.4.0
+
+### New: `/rem` — sleep-cycle maintenance
+
+Planning-with-james accumulates weight over time. The registry gathers completed and paused plans that never get cleaned up. `lessons.md` grows past the "curate at 200 lines" threshold and nobody curates it. Knowledge graph modules stay technically current (commit hash matches) while drifting semantically (the "Purpose" paragraph describes code the module used to be). Explorations pile up. Progress files from interrupted runs linger.
+
+`/rem` runs a four-phase sleep cycle to address this:
+
+1. **Triage**: survey registry, plans, lessons, knowledge staleness signals, explorations, epic learnings, and existing action items. Categorize into obvious-dead, probably-archive, needs-review, dream-seeds. Write `_rem_triage.json`.
+
+2. **Prune**: auto-archive completed plans > 30 days, abandoned/paused plans > 30 days, explorations > 30 days, completed progress files. Sweep unpromoted lessons from plans *before* archiving so nothing is lost. Leave registry stubs for archived plans so `/plan` can still find prior work by name. Everything is `mv`-recoverable; the user restores manually.
+
+3. **Consolidate**: three parallel opus agents propose (a) lesson merges and stale-reference removals, (b) forgotten-lesson promotions from paused/abandoned plans, (c) knowledge-graph staleness action items. User approves by batch.
+
+4. **Dream**: a Team of five opus agents — Archaeologist (git/churn), Cartographer (knowledge-vs-code), Historian (plan archaeology), Detective (weirdness hunting), and Weaver (synthesizer) — wanders the repo, messages each other as they find things in each other's lanes, and produces dream notes + action items. Optional MCP data sources (Sentry, Vercel, GCP) are tried if configured; skipped gracefully otherwise.
+
+Sub-commands (`/rem triage`, `/rem prune`, `/rem consolidate`, `/rem dream`, `/rem status`) run individual phases. Default `/rem` runs everything.
+
+**Key invariants**:
+- Rem never writes to `knowledge/modules/` — stale modules become action items recommending `/update-knowledge guided`.
+- Rem never archives a plan with unpromoted lessons — it promotes first.
+- Archive is append-only with a manifest; user restores with `mv`.
+- Triggered manually. No hooks, no scheduling.
+
+**New artifacts**:
+- `.claude/planning-with-james/rem-config.json` — retention windows, data-source toggles
+- `.claude/planning-with-james/dreams/{date}/` — journal entries per sleep session
+- `.claude/planning-with-james/action_items/` — inbox with `_index.md` and per-item files
+- `.claude/planning-with-james/archive/` — everything rem retires, with `_manifest.json`
+- Registry gets `status: "archived"` stubs (5 fields) for findability
+
+---
+
 ## v3.3.0
 
 ### Optimization: Sonnet for pure aggregation agents

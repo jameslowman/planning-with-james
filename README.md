@@ -51,6 +51,13 @@ It will also build a test plan in plain English -- every test scenario described
 
 Works through tasks one at a time. If Claude loses context mid-way, it reads the files and picks up where it left off.
 
+**Periodically, let it sleep:**
+```
+/planning-with-james:rem
+```
+
+After a lot of plans have come and gone, the registry, lessons, and knowledge graph accumulate weight. `/rem` runs a sleep cycle: archives completed plans, consolidates redundant lessons, promotes forgotten ones, and lets a small team of agents wander the repo looking for gaps, weirdness, and cross-plan patterns. Dreams get written to a journal; urgent findings become action items. Run it whenever things feel heavy.
+
 ---
 
 ## Why This Exists
@@ -80,6 +87,9 @@ This plugin fixes both problems:
 | `/planning-with-james:go-time` | Execute a plan |
 | `/planning-with-james:go-time pause` | Pause implementation |
 | `/planning-with-james:epic` | Plan something big (weeks/months) |
+| `/planning-with-james:rem` | Sleep cycle -- archive old plans, consolidate lessons, dream up gaps and action items |
+| `/planning-with-james:rem triage` | Dry-run report only -- what would rem do? |
+| `/planning-with-james:rem status` | Show open action items, archive stats, recent dreams |
 
 ---
 

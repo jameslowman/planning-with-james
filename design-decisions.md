@@ -935,6 +935,122 @@ This phase shifts everything after Approach:
 
 ---
 
+## REM Sleep System (v3.4.0 — New Skill)
+
+### The Problem: Accumulated Weight
+
+Every skill in this plugin produces artifacts, and none of them clean up after themselves. After a few months of real use:
+
+- `_registry.json` gathers completed plans, paused plans, and sessions that never got pruned (session pruning exists but only hits 24-hour-old entries)
+- Per-plan folders persist with full scratch pads, findings, and detailed plans even when the plan is long done
+- Project-level `lessons.md` grows past the "curate at 200 lines" rule and nobody enforces it
+- The knowledge graph stays technically current (commit hashes match after `update-knowledge` runs) while drifting semantically — a module's Purpose paragraph describes what it used to do, not what the code now does
+- `/dig` explorations pile up in `explorations/`
+- Progress files from interrupted `create-knowledge` or `update-knowledge` runs linger with `in_progress` status
+
+Left alone, the plugin becomes slow to load (registry parsing, cross-plan checks), noisy to search, and quietly inaccurate (stale knowledge misleads planning).
+
+### The Analogy: Sleep
+
+Real brains consolidate memory overnight. Short-term memory moves to long-term; redundant traces merge; abandoned pursuits lose salience; patterns emerge from the day's episodes. REM sleep specifically is when dreaming happens — generative, sometimes weird, noticing things the waking brain didn't.
+
+`/rem` maps this to four phases:
+
+1. **Triage** — the plugin's drowsy survey. Walk every artifact source, categorize into `obvious-dead`, `probably-archive`, `needs-review`, and `dream-seeds`. Touch nothing. Write `_rem_triage.json`.
+2. **Prune** — slow-wave sleep analog. Act on the obvious-dead: archive completed/paused plans past retention, old explorations, stale sessions, dangling locks, completed progress files. Safe, low-judgment work.
+3. **Consolidate** — memory consolidation. Judgment-heavy merges and promotions, batched for user approval.
+4. **Dream** — REM analog. A team of agents with different lenses wanders the repo and each other's observations, producing dream journal entries and action items.
+
+The metaphor isn't load-bearing, but it's useful — it predicts the right sequence (cheap survey, safe cleanup, careful judgment, generative exploration) and names the parts memorably.
+
+### Key Design Decisions
+
+**Bifurcated output: dreams vs action items.**
+
+Early brainstorm had rem producing a single "dream journal." But some findings are urgent ("the hapag-scrapers module is grossly out of date and three recent plans rediscovered this"), while others are leisurely ("there's a naming drift between `getUserData` and `fetchUserData` across four modules"). Bundling them would either make dreams naggy or make urgent items lose context.
+
+Split them:
+- **Dreams** live in `dreams/{date}/` — journal entries, no lifecycle, no expiration. Read when curious.
+- **Action items** live in `action_items/` — files with frontmatter (priority, type, target, recommended_action, status). They have an inbox (`_index.md`) and a `resolved/` folder. Each item prescribes a specific command (usually `/update-knowledge guided` with suggested `$ARGUMENTS`).
+
+The Weaver (one of the Dream team agents) is the only one authorized to promote a dream finding to an action item. This keeps individual lenses focused on discovery.
+
+**Archive, never delete; registry stubs for findability.**
+
+Rem moves retired artifacts to `.claude/planning-with-james/archive/`. Every move is recorded in `_manifest.json`. The user restores with `mv` — no `/rem restore` command (the code isn't worth it for a rare operation).
+
+The subtle part is plans. `/plan` checks the registry on every invocation to see if the user's request matches existing in-progress work. If rem archived a plan entirely from the registry, that lookup would miss prior work. Solution: **registry stubs**. When a plan is archived, its registry entry is replaced with a slim stub (~5 fields: name, status, archived_at, archive_path, problem_summary). `/plan` can still fuzzy-match against the name and problem summary to offer: "you're planning something similar to SB-1112 (archived) — want to resurrect its findings?" The heavy content (scratch pads, findings) stays in the archive folder and is only read if the user opts in.
+
+**Never archive a plan with unpromoted lessons.**
+
+`go-time` COMPLETE promotes per-plan lessons to project level. Paused or abandoned plans never ran COMPLETE, so their lessons are stuck. Before archiving any such plan, rem sweeps its `lessons.md` and promotes anything that belongs at project level. Silent archiving would lose hard-won context.
+
+**Rem never writes to `knowledge/modules/`.**
+
+One writer per artifact. `create-knowledge` and `update-knowledge` own the knowledge graph. Rem's role is to **observe and recommend**. When the staleness auditor (Consolidate Phase 3) or the Cartographer (Dream Phase 4) finds drift, they produce action items recommending `/update-knowledge guided` with specific context. The user runs the command — rem doesn't.
+
+This mirrors how `/dig` is read-only against the graph. It keeps ownership clean and makes rem safe to run frequently.
+
+**Manual trigger only. No hooks, no scheduling.**
+
+An initial design considered a SessionStart hook nagging when rem hadn't run in N days, or wiring into `go-time COMPLETE`. Both were rejected:
+- Hooks would run rem in contexts where the user is focused on something else
+- Auto-scheduling competes with the user's mental model of when maintenance happens
+- Rem can be heavy (especially Dream), so opportunistic runs might surprise
+
+The user runs `/rem` when they feel the plugin getting heavy. Simple.
+
+**Dream team uses `TeamCreate` for peer messaging.**
+
+Every other multi-agent phase in the plugin uses fire-and-forget + `_result.json` polling, because those agents are doing embarrassingly parallel work (one module, one agent). Dreaming is different: the value is in cross-pollination. An Archaeologist finds an abandoned module and asks the Historian "any plan reference this?" The Historian points to a paused plan, the Archaeologist reads its scratch pad and writes a note neither could have written alone.
+
+`TeamCreate` + `SendMessage` supports this directly. The Team is destroyed after the run. The design-decisions.md already flagged Teams as a deferred future use — Dreams is where it finally earns its place.
+
+**Four cruisers + one weaver.**
+
+The lenses:
+- **Archaeologist** — git history, churn, abandonment. What's been dug up and reburied?
+- **Cartographer** — knowledge graph vs code. Where does the map lie?
+- **Historian** — reads completed + paused + archived plans. What themes keep coming back?
+- **Detective** — weirdness hunter. TODOs, orphans, duplicates, config sprawl, Sentry errors.
+- **Weaver** — reads the four lens outputs and team transcript. Produces the digest and decides which findings become action items. Can create action items from cross-lens convergences (when two lenses independently noticed the same thing, the signal is real).
+
+Separation of discovery (cruisers) from synthesis (weaver) prevents any single lens from biasing toward action.
+
+**MCP data sources are opt-in and best-effort.**
+
+Detective (and optionally Archaeologist) can pull from Sentry, Vercel, or GCP if those MCPs are configured. `rem-config.json` has a `data_sources` block with `"auto"` / `"on"` / `"off"` per source. `"auto"` means: try, and if the MCP errors or requires reauthorization, log "skipped {source}: unavailable" and move on.
+
+This is important because Sentry's MCP auth prompt currently fires on every use — running rem with forced Sentry access would produce auth prompts mid-dream, defeating the unattended-run design.
+
+**30 days across the board for retention.**
+
+Initial proposal was 90 days for explorations. The user pushed back — "that's pretty long for how fast we move." One retention window (30 days, configurable) applied to completed plans, abandoned paused plans, and explorations makes the system predictable without tuning.
+
+"Last activity" matters more than "created_at". A plan created 60 days ago but whose scratch pad was touched 5 days ago is still active. Rem computes last-activity as the max of `_plan_state.json`'s `last_updated`, registry updates, and the mtime of `context_scratch_pad.md`.
+
+**Batched consolidation approvals.**
+
+When Phase 3 agents produce proposals (lesson merges, promotions, staleness findings), rem groups them by category and asks the user to approve each group as a batch with `AskUserQuestion`. Individual approval is tedious at volume; bulk approve-all-or-nothing is too coarse. Grouped-by-category with "apply all / review each / skip all" per group is the compromise.
+
+### What Rem Does NOT Do
+
+- Does not run on a schedule
+- Does not write to `knowledge/modules/`
+- Does not delete (except for genuinely ephemeral files like completed progress files)
+- Does not take destructive action during consolidation without user approval
+- Does not prompt the user for MCP reauthorization mid-run
+- Does not archive plans with unpromoted lessons
+
+### Future Considerations
+
+- **Rem-aware `/plan`**: When `/plan` checks the registry, it could also fuzzy-match against archived stubs and say "you're planning something that sounds like SB-1112 (archived). Want to resurrect?" Small addition, big UX win.
+- **Tunable dream lenses**: Let `rem-config.json` specify which lenses to spawn. Some users might only want Detective (runtime weirdness) or Cartographer (knowledge audit).
+- **Cross-repo dreams**: If the plugin ever supports multiple codebases in one install, dreams could notice patterns across repos.
+- **Rem-generated lesson promotions audit**: Weaver could notice "the same lesson has been promoted from three different plans" and merge them.
+
+---
+
 ## Future Considerations
 
 ### Depth Levels
