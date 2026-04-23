@@ -1,5 +1,21 @@
 # Release Notes
 
+## v3.3.0
+
+### Optimization: Sonnet for pure aggregation agents
+
+Two agents move from opus to sonnet. Both perform deterministic data aggregation — they read structured inputs that opus subagents already produced and emit structured outputs with a defined schema. Their output quality is bounded by the inputs, not by the aggregating agent's reasoning, so sonnet should be indistinguishable from opus here.
+
+**Changed**:
+- `create-knowledge` Phase 3 (connectivity mapping): reads all `_refs.json` files, cross-references imports/exports, builds `_graph.json` and `_architecture.md`.
+- `update-knowledge` Phase 4a (graph rebuild): reads all `_refs.json` files and `_discovery.json`, rebuilds `_graph.json` with containment edges.
+
+**Unchanged** (still on opus): all judgment-heavy agents — Phase 2 wave classification (the leaf/container decision sets the graph's quality ceiling), plan Phase 3 discovery, plan Phase 4 test architecture, plan Phase 6 critique and reuse (explicitly designed as "fresh skeptical eyes"), epic review synthesis, and update-knowledge cascade verification (its "no changes needed" answer is the common path — a model that skews toward it would silently rot the graph over time).
+
+**Rationale**: The plugin's original philosophy was "cost is not a concern, depth is the goal." Recent Claude Code limit changes make cost a real factor, so we're selectively downgrading the agents where opus is most obviously overkill — schema-in, schema-out transformations that don't benefit from opus reasoning capacity. Starting conservative and measuring before expanding further.
+
+---
+
 ## v3.2.0
 
 ### Fix: Background agents silently failing (permission mode)

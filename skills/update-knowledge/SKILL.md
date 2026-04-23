@@ -277,7 +277,7 @@ Update `cascade_completed` in progress file after each.
 
 ### 4a. Rebuild graph
 
-Spawn ONE Task agent (`subagent_type`: "general-purpose", `model`: "opus", `mode`: "bypassPermissions"):
+Spawn ONE Task agent (`subagent_type`: "general-purpose", `model`: "sonnet", `mode`: "bypassPermissions"):
 
 ```
 You are rebuilding the knowledge graph after updates.

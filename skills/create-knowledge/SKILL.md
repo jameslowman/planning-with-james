@@ -380,7 +380,7 @@ When no modules have `module_type: "pending"`, Phase 2 is done. Update progress:
 
 Now spawn subagents to map the relationships between modules.
 
-Launch a SINGLE Task agent with `subagent_type`: "general-purpose", `model`: "opus", and `mode`: "bypassPermissions" to:
+Launch a SINGLE Task agent with `subagent_type`: "general-purpose", `model`: "sonnet", and `mode`: "bypassPermissions" to:
 
 **CRITICAL**: Include in the agent prompt: "Use the Write and Edit tools for ALL file changes. Do NOT use Bash commands (sed, awk, for loops, echo) to create or modify files. Bash is only for git commands."
 
