@@ -23,6 +23,7 @@ This document maintains continuity across sessions. **If you're resuming after a
 ## Plan Documents
 
 - [ ] problem_description.md - Not started
+- [ ] user_story.md - Not started
 - [ ] scope.md - Not started
 - [ ] findings/ - Not started
 - [ ] findings_summary.md - Not started

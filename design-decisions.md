@@ -935,6 +935,57 @@ This phase shifts everything after Approach:
 
 ---
 
+## Pre/Post User Story Narrative (v3.5.0)
+
+### The Problem: Bullet-Point User Flows Flatten the Mental Model
+
+Phase 1's user-flow extraction was a Q&A — "walk me through the steps you take to trigger this." The output was a numbered list with `Expected:` and `Actual:` at the failure point. Mechanically correct, structurally clean, easy for Phase 4 test agents to consume.
+
+The list also missed the things that actually break alignment between user and planner:
+
+- **Side effects within a step** — "she glances back at the addin and notices the spinner is gone, even though the PDF is still being prepared, but figures it must be ready in the other tab." A list flattens this to "spinner disappears."
+- **Interruptions and context switches** — phone calls, switching browser tabs, opening another email mid-flow. These are the conditions under which silent failures happen, but they don't fit the "what does the user do step by step" frame.
+- **Consequences that surface later** — "Twenty minutes later her customer asks where the quote is." The bug isn't visible at the moment of failure; it's visible when the consequence catches up.
+- **Things the protagonist doesn't notice** — half the bug is the silent failure mode. A list of "what the user does" can't capture inattention.
+
+A user looking at a numbered list can verify the mechanics without ever asking "is this how this actually plays out for the people doing it?"
+
+### The Fix: Scene-by-Scene Narrative with a Cast
+
+Phase 1 now authors a **cast-and-scenes user story** with the user, scene-by-scene. The cast names the protagonist (a real user with a role for bug/feature work; "the developer", "the system", or "the calling service" for refactor/infra). Each scene is a 1–4 sentence-per-step narrative that interleaves protagonist action and system response, calls out what the protagonist doesn't notice, and carries consequences forward.
+
+Pattern: identify the cast, write Scene 1 (main path), present it, iterate until confirmed, then ask whether Scene 2 should cover an interruption / variant load / failure recovery, write that, confirm, repeat up to 4 scenes total. **One scene confirmed at a time.** The constraint forces the planner to pick scenes that actually carry signal — not just enumerate every possible flow.
+
+The narrative goes in a new artifact: `user_story.md`.
+
+### Why Both Narrative AND Structured Flows Exist
+
+The narrative serves humans (alignment, mental-model check, Linear comment). The structured user-flow list serves machines (Phase 4 test architecture agents map flow steps to code paths via mock-boundary analysis — narrative form doesn't decompose cleanly to that).
+
+Rather than ask the user to author both, the planner authors the narrative *with* the user, then mechanically derives the structured flow list into `problem_description.md`. Single source of truth, two formats, no duplicate authoring.
+
+### Post-Implementation Half + IS / IS-NOT (Phase 9)
+
+The full pre/post user story can't be written in Phase 1 — POST needs the approach decided, and "It is NOT" needs the deferred items known. So Phase 9 closes the loop: write a Post Scene N for each Pre Scene N, with the same protagonist, same starting situation, but showing the new behavior. Then write the IS / IS-NOT section sourced from `detailed_plan.md`, `critique_report.md`, `reuse_analysis.md`, and `approach.md`'s out-of-scope items.
+
+The pre/post checkpoint at the end of Phase 9 is the strongest test of whether the plan actually solves the problem. If the user reads the post-scenes and they don't feel right, the plan has drift somewhere upstream — the narrative form makes the drift visible in a way that tasks-list review doesn't.
+
+### Linear Posting (Optional, Best-Effort)
+
+If the user provided a Linear ticket URL during Phase 1, Phase 9 offers to post the full user story as a comment on the ticket. Linear MCP availability is best-effort — if not configured or auth-expired, the planner tells the user where the file lives and skips. No blocking, no auth prompts during finalization.
+
+### Why Not Replace the Whole Phase 1 Q&A
+
+Phase 1 still gathers problem type, summary, success criteria, references, and theories up front. The narrative is *one part* of Phase 1, focused on the user's path through the system. The non-narrative questions (success criteria, references) don't benefit from scenes.
+
+### Trade-offs Accepted
+
+- **Slower Phase 1**: scene-by-scene confirmation roughly 2-3x's Phase 1 time vs. a single user-flow Q&A. The savings show up downstream — plans don't get derailed in Phase 5 or Phase 7 because a missing context surfaced at scene-confirmation time.
+- **Cast can feel awkward for refactors**: the generic protagonist fallback ("the developer", "the system") works but is less vivid. Acceptable cost for keeping the same structure across all problem types.
+- **Two phases author the same artifact**: `user_story.md` is written by Phase 1 and updated by Phase 9. Each phase only writes the half it has the inputs for. The frontmatter `post_filled_in` flag keeps state explicit.
+
+---
+
 ## REM Sleep System (v3.4.0 — New Skill)
 
 ### The Problem: Accumulated Weight

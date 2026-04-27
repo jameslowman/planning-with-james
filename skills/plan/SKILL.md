@@ -190,7 +190,8 @@ Create the plan folder with all template files:
 {plan_folder}/
 ├── _plan_state.json           # Plugin state tracking
 ├── context_scratch_pad.md     # Cold restart doc (maintained throughout)
-├── problem_description.md     # Phase 1 output
+├── problem_description.md     # Phase 1 output (structured)
+├── user_story.md              # Phase 1 + Phase 9 output (cast + scene narrative)
 ├── scope.md                   # Phase 2 output
 ├── findings/                  # Phase 3 outputs
 │   └── (created during discovery)
@@ -275,6 +276,7 @@ This document maintains continuity across sessions. If you're resuming after a c
 
 ## Plan Documents
 - [ ] problem_description.md - Not started
+- [ ] user_story.md - Not started
 - [ ] scope.md - Not started
 - [ ] findings/ - Not started
 - [ ] test_plan.md - Not started
@@ -310,7 +312,9 @@ Now proceed to Phase 1.
 
 # PHASE 1: CONTEXT GATHERING
 
-**Goal**: Understand what we're solving from the user's perspective.
+**Goal**: Understand what we're solving from the user's perspective. Author a pre-implementation user story scene-by-scene with the user, so both of you have an aligned mental model of the current state before scoping begins.
+
+The narrative form catches things bullet-point user flows flatten out — interruptions, side effects, things the protagonist doesn't notice, consequences that surface later. Scenes are confirmed one at a time. The user is the source of truth.
 
 ## Step 1: Gather Additional Context
 
@@ -333,44 +337,143 @@ The user already gave you an initial description in Phase 0 Step 1. Now dig deep
 **If success criteria is unclear:**
 > "How will we know this is solved? What does success look like?"
 
-**User flow extraction (ALWAYS ask for bugs, STRONGLY encourage for features):**
-
-This is critical for test-first planning. We need step-by-step user flows to build test scenarios from.
-
-**For bugs:**
-> "Walk me through exactly what you do to trigger this. Step by step — what do you click or call, what data are you working with, and what do you see at each step? Where does it break?"
->
-> "What should happen instead at the point where it fails?"
->
-> "Can you reproduce it consistently, or is it intermittent? What conditions make it appear or disappear?"
->
-> "When did this last work correctly? Any recent changes that might be related?"
-
-**For bugs: do not proceed past Phase 1 without at least one concrete user flow.** If the user genuinely cannot provide reproduction steps (intermittent, production-only, etc.), note this as a gap and the Test Architecture phase (Phase 4) will escalate its investigation effort accordingly.
-
-**For features:**
-> "Walk me through the user journey you're envisioning. Step by step — what does the user do, and what do they see at each step?"
->
-> "Are there alternate paths? What happens if the user provides bad input, or skips a step?"
->
-> "What's the simplest version of this flow? What's the full version?"
-
-**For refactors:**
-> "What behavior should remain exactly the same after the refactor? Walk me through the key user-facing flows that must not change."
-
-**Only ask questions you need answers to.** If the user's initial description already includes detailed flows, don't re-ask — capture what they gave you.
+**Do NOT yet ask the user to walk through step-by-step user flows.** The narrative authoring in Step 3 will draw out flows naturally, scene-by-scene, with the user confirming each scene before moving on. Asking for flows up-front and re-asking during narrative authoring is duplicate work.
 
 ## Step 2: Process Additional Context
 
 If user provides:
-- **Linear/GitHub URLs**: Fetch and extract relevant details
+- **Linear/GitHub URLs**: Fetch and extract relevant details. Record the ticket URL — Phase 9 will offer to post the user story back to it.
 - **Screenshots**: Analyze them
 - **Error logs**: Parse and identify key information
 - **Existing code references**: Note them for discovery
 
-## Step 3: Write Problem Description
+## Step 3: Author the Pre-Implementation User Story
 
-Create `problem_description.md`:
+Author the narrative scene-by-scene. The user confirms each scene before the next begins. By the end, every step has been validated.
+
+For bugs and features the cast-and-scenes form is the default. For refactors, infra work, or internal tooling without a clear human protagonist, default to a generic role ("the developer", "the system", "the calling service") and proceed without further negotiation.
+
+### Step 3a: Identify the Cast
+
+Use `AskUserQuestion`:
+
+> "Who's in this story? I want to capture the protagonist (the person or system that experiences the problem) and any supporting characters (other actors who appear).
+> - **Bug or feature in a user-facing app**: a named user with a role (e.g., 'Maria, a freight forwarder'), plus the entities they interact with (customer emails, dashboards, etc.)
+> - **Refactor or infra**: 'the developer' or 'the system' with the components touched
+> - **API or internal tooling**: 'the calling service' with the systems it integrates"
+
+If the user's initial description already implies a clear protagonist, propose it and ask for confirmation rather than asking from scratch.
+
+### Step 3b: Author Scene 1 (Main Path)
+
+Scene 1 is the primary flow — the path the protagonist takes to encounter the problem (for bugs) or the path the feature is built around (for features). Use this structure for every scene:
+
+```
+### Scene N: {short descriptive title}
+
+1. {Step in narrative form — verbs, side effects, what the protagonist sees and feels}
+2. {Step}
+3. ...
+N. **Expected**: {what should happen at the failure point — for bugs}
+N+1. **Actual**: {what happens instead — for bugs}
+```
+
+Differences from a structured user-flow list:
+- Full sentences, not noun phrases. Side effects belong in the step ("She glances back at the addin — the spinner is gone, even though the PDF is still being prepared.")
+- Interleave protagonist action and system response rather than splitting them into separate columns
+- Note things the protagonist does NOT notice ("she figures the PDF must be ready in the other tab")
+- Carry consequences forward across scenes ("Twenty minutes later her customer asks where the quote is.")
+
+After writing Scene 1, present it to the user:
+
+> "**Scene 1: {title}**
+>
+> {full scene text}
+>
+> Does this match how this actually plays out? Any details I missed, or steps that happen differently?"
+
+Iterate until the user confirms. **Do not move to Scene 2 until Scene 1 is right.**
+
+### Step 3c: Identify Additional Scenes
+
+After Scene 1, ask:
+
+> "Are there meaningfully different scenes I should also capture? Common candidates:
+> - **Interruption** — the protagonist is pulled away mid-flow (phone call, switching emails, browser navigation)
+> - **Variant load** — same goal, different starting state (loading from dashboard vs from email, returning user vs new, dashboard vs API call)
+> - **Failure recovery** — the protagonist notices something is wrong and tries to recover or back out
+>
+> What scenes (if any) should I add? Keep it to 4 total — more than that usually means the problem needs to be split into multiple plans."
+
+### Step 3d: Author Each Additional Scene
+
+For each additional scene the user identified, repeat the Scene 1 pattern: write it, present it, iterate until confirmed, then move to the next. Confirm one scene at a time — never present multiple unconfirmed scenes simultaneously.
+
+Fewer than 4 scenes is fine. One scene with deep edge-case coverage may be enough for a small bug. Quality over quantity.
+
+### Step 3e: Capture Open Questions
+
+After all scenes are confirmed, ask:
+
+> "Anything from these scenes that I should investigate during discovery? Things you're uncertain about, or where the system's actual behavior might differ from what we wrote?"
+
+Add these to the open-questions list — they'll feed into Phase 3 discovery.
+
+**For bugs: do not proceed past Phase 1 without at least one confirmed scene that captures the failure.** If the user genuinely cannot describe reproduction (intermittent, production-only, etc.), capture what they DO know in narrative form — symptoms, conditions, suspected triggers — and note this as a gap. Phase 4 will escalate investigation effort accordingly.
+
+## Step 4: Write user_story.md and problem_description.md
+
+### user_story.md
+
+Create `{plan_folder}/user_story.md`:
+
+```markdown
+---
+plan_name: {plan-name}
+created_at: {timestamp}
+status: pre_drafted
+post_filled_in: false
+scene_count: {N}
+linear_ticket_url: {url or null}
+---
+
+# User Story: {plan_name}
+
+## The Cast
+
+- **{Protagonist name}, {role}**. {One sentence about how they interact with this system.}
+- **{Supporting character}** — {one sentence}
+
+---
+
+## PRE-IMPLEMENTATION (today's behavior)
+
+### Scene 1: {title}
+
+{numbered steps, narrative form, with Expected / Actual at the failure point for bugs}
+
+### Scene 2: {title}
+
+...
+
+(All confirmed scenes)
+
+---
+
+## POST-IMPLEMENTATION (after this PR)
+
+(To be filled in during Phase 9 Finalize)
+
+---
+
+## What the fix IS / IS NOT
+
+(To be filled in during Phase 9 Finalize)
+```
+
+### problem_description.md
+
+Create `{plan_folder}/problem_description.md`:
 
 ```markdown
 ---
@@ -400,20 +503,19 @@ status: draft
 
 ## User Flows
 
-{Step-by-step sequences from the user. Capture verbatim or lightly structured.}
+**Source**: derived from `user_story.md` for use by Phase 4 test architecture agents. Read `user_story.md` for the narrative form; this section is the structured re-cut.
 
-### Flow 1: {short name}
+### Flow 1: {scene 1 title}
 1. {step}
 2. {step}
-3. {step}
-4. **Expected**: {what should happen}
-5. **Actual**: {what happens instead — for bugs}
+- **Expected**: {what should happen}
+- **Actual**: {what happens instead — for bugs}
 
-### Flow 2: {short name}
+### Flow 2: {scene 2 title}
 1. ...
 
 ### Alternate Paths / Edge Cases
-{Variations, error conditions, boundary cases}
+{Variations, error conditions, boundary cases extracted from scenes}
 
 ## User's Theories
 {Any hypotheses the user shared about cause or approach}
@@ -430,28 +532,33 @@ status: draft
 {Things we need to clarify}
 ```
 
-## Step 4: Update Cold Start Doc
+The User Flows section is **derived mechanically from `user_story.md` by you, the planner orchestrator** — extract the numbered steps from each scene into the structured flow shape. Do not ask the user to re-author flows. The narrative was already validated; the structured flow is the same content in a format the test architecture agents consume.
+
+## Step 5: Update Cold Start Doc
 
 Update `context_scratch_pad.md`:
 - Current phase: 1 - Context Gathering
 - Add problem summary
 - Note problem type
+- Add cast (protagonist) and scene count
 - Add any open questions
 
-## Step 5: Checkpoint (ALWAYS STOP)
+## Step 6: Checkpoint (ALWAYS STOP)
 
-This checkpoint always requires user confirmation. We must verify we understood the problem correctly.
+This checkpoint always requires user confirmation. The scenes were confirmed one at a time during Step 3 — this checkpoint is the final summary before moving to scoping.
 
-Present the problem description to the user:
+Present a summary:
 
-> "Here's my understanding of the problem:
+> "Here's where Phase 1 lands:
 >
 > **Type**: {type}
 > **Summary**: {summary}
-> **User Flows Captured**: {count} ({brief list — e.g., "1. Rate search returns wrong UNLOCODEs, 2. Bulk export times out"})
+> **Cast**: {protagonist, supporting characters}
+> **Scenes captured**: {N}
 > **Success Criteria**: {criteria}
+> **Open Questions**: {N}
 >
-> Review `problem_description.md` for the full user flows. Do these capture the behavior accurately? Any flows I should add?"
+> Full narrative is in `user_story.md`. Structured flows for the test phase are in `problem_description.md`. Ready to scope this against the knowledge graph?"
 
 **If user approves**: Update `_plan_state.json` phase to 2, proceed to Scoping
 **If user has changes**: Incorporate feedback, re-checkpoint
@@ -1939,9 +2046,76 @@ Always present the task breakdown to the user. This is the last chance to adjust
 
 # PHASE 9: FINALIZE
 
-**Goal**: Prepare cold start doc and mark planning complete.
+**Goal**: Generate the post-implementation user story, lock the scope frame ("It IS / It is NOT"), present the full pre/post mental model to the user, optionally post to Linear, prepare the cold-start doc, and mark planning complete.
 
-## Step 1: Finalize Cold Start Doc
+This phase closes the loop on the narrative started in Phase 1. The user reads the post-scenes alongside the pre-scenes and confirms the plan actually delivers what they pictured. The IS/IS-NOT section locks scope before implementation begins, surfacing every deferred item the user agreed to.
+
+## Step 1: Author the Post-Implementation User Story
+
+You now have everything needed: approved approach, detailed plan, critique findings, reuse analysis, deferred items. Mirror each PRE scene from `user_story.md` with a POST scene.
+
+### Step 1a: Author Each Post Scene
+
+For each Pre Scene N, write a corresponding Post Scene N showing:
+- The same protagonist, same starting situation
+- How the new behavior plays out (what the protagonist sees, what happens behind the scenes)
+- Where appropriate, mention the technical mechanism in a brief inline aside ("Behind the scenes: the addin captures the email context from Office.js")
+
+Keep the same titles as the pre-scenes. Keep the same protagonist. The 1:1 structural parallel is the point — the user reads pre/post side-by-side and sees exactly what changes.
+
+### Step 1b: Author the "It IS / It is NOT" Section
+
+This is the scope frame — what the fix is, and what the fix deliberately is not. Sources:
+
+**It IS** — synthesize from `detailed_plan.md`:
+- Scope (purely client-side? touches schema? new endpoints?)
+- Core mechanism (the load-bearing change in plain language)
+- Approximate code volume (lines per file, files touched)
+- New files vs. modifications
+
+**It is NOT** — synthesize from:
+- `critique_report.md` notes and concerns that were deliberately deferred
+- `reuse_analysis.md` AVOID entries (things that look similar but won't be touched)
+- `approach.md` "Out of Scope" section
+- Known limitations the planner and user discussed but chose not to fix in this plan
+
+Format both as bullet lists. Keep entries concrete — every bullet either references a file, a behavior, or a deferred problem with the reason for deferral.
+
+### Step 1c: Update user_story.md
+
+Append the post scenes and IS/IS-NOT section to `user_story.md`. Update frontmatter `post_filled_in: true`, `status: complete`.
+
+## Step 2: User Story Checkpoint (ALWAYS STOP)
+
+Present the full pre/post user story:
+
+> "Here's the full pre/post user story for {plan_name}.
+>
+> {Show the entire `user_story.md` content — cast, all pre scenes, all post scenes, and the IS / IS-NOT section.}
+>
+> Does this match your mental model of what we're delivering? Anything in the post scenes that doesn't reflect the actual fix? Anything missing from the IS / IS-NOT section?"
+
+**Wait for the user to respond.** They may:
+- Confirm — proceed to Step 3
+- Correct a post scene — update and re-present
+- Add a deferred item to IS-NOT — update and re-present
+- Realize the plan has a gap — return to Phase 7 or Phase 8 to fix it
+
+This checkpoint is the strongest test of whether the plan actually solves the problem. If the user reads the post-scenes and they don't feel right, the plan has drift somewhere upstream.
+
+## Step 3: Post to Linear (Optional)
+
+Check `user_story.md` frontmatter `linear_ticket_url`. If a ticket URL was captured during Phase 1:
+
+> "Post the user story as a comment on the Linear ticket `{ticket_url}`?"
+
+If the user confirms, use available Linear MCP tools (e.g., `mcp__claude_ai_Linear__save_comment`) to post the contents of `user_story.md` as a comment. Pass real newlines in the markdown content rather than literal `\n` characters.
+
+**MCP availability is best-effort.** If the Linear MCP is not configured, returns an auth error, or the tool isn't loaded in this session, inform the user: "Linear MCP unavailable. The user story is at `{plan_folder}/user_story.md` — copy and paste it into the ticket if needed." Do not block planning finalization on Linear posting.
+
+If no ticket URL is in frontmatter, skip this step silently.
+
+## Step 4: Finalize Cold Start Doc
 
 Update `context_scratch_pad.md` to be a complete cold start reference:
 
@@ -1970,6 +2144,7 @@ last_updated: {timestamp}
 ## Plan Documents
 
 - [x] problem_description.md - Complete
+- [x] user_story.md - Complete ({N} scenes pre/post + IS/IS-NOT)
 - [x] scope.md - Complete
 - [x] findings/ - Complete ({N} areas investigated)
 - [x] findings_summary.md - Complete
@@ -2006,7 +2181,8 @@ If you're starting fresh or after context loss:
 ## Session Log
 
 - {timestamp}: Plan initialized
-- {timestamp}: Problem description complete (with user flows)
+- {timestamp}: Pre-implementation user story complete ({N} scenes)
+- {timestamp}: Problem description complete (structured flows derived from narrative)
 - {timestamp}: Scope defined
 - {timestamp}: Discovery complete
 - {timestamp}: Test plan complete ({N} scenarios)
@@ -2014,10 +2190,11 @@ If you're starting fresh or after context loss:
 - {timestamp}: Approach stress test complete (critique: {verdict}, reuse: {X}%)
 - {timestamp}: Detailed plan complete
 - {timestamp}: Tasks defined (test-first)
+- {timestamp}: Post-implementation user story + IS/IS-NOT complete
 - {timestamp}: PLANNING COMPLETE - Ready for implementation
 ```
 
-## Step 2: Update Plan State
+## Step 5: Update Plan State
 
 Update `_plan_state.json`:
 - `current_phase`: 9
@@ -2039,14 +2216,15 @@ Update `_plan_state.json`:
 Update `.claude/planning-with-james/plans/_registry.json`:
 - Plan status: `"planned"` (ready for `/planning-with-james:go-time`)
 
-## Step 3: Final Output
+## Step 6: Final Output
 
 Present completion to user:
 
 > "Planning complete for {plan_name}!
 >
 > **Documents Created**:
-> - problem_description.md (with user flows)
+> - problem_description.md (structured flows for test agents)
+> - user_story.md (cast + pre/post scenes + IS/IS-NOT — {N} scenes, posted to Linear: {yes/no})
 > - scope.md
 > - findings_summary.md (+ {N} detailed findings)
 > - test_plan.md ({N} test scenarios, {M} individual tests)

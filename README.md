@@ -40,9 +40,11 @@ shipping visualization. I think the data is already in the routing tables
 somewhere, we just need to surface it through the API.
 ```
 
-It will start asking questions. It will ask you to walk through user flows step by step. It will show you what it found. It will check if its understanding matches yours. This back-and-forth is the point -- your knowledge fills gaps that code analysis can't.
+It will start asking questions. It will identify a cast (the protagonist who hits this — a named user, "the developer", "the calling service"), then author scene-by-scene with you: main path, then maybe an interruption, a variant load, a failure recovery. You confirm each scene before the next gets written. By the end of Phase 1 there's a `user_story.md` with the pre-implementation narrative, and you've caught the things bullet-point flows always miss — the side effects, the things the protagonist doesn't notice, the consequence that surfaces twenty minutes later.
 
 It will also build a test plan in plain English -- every test scenario described so you can review and refine them before any code is written. For bugs, these tests prove the bug exists before you fix it.
+
+At the end of planning (Phase 9), it writes the **post-implementation** half of the user story — same protagonist, same starting situation, but showing how the new behavior plays out. Plus a "What the fix IS / IS NOT" section pulled from the detailed plan, critique report, reuse analysis, and out-of-scope decisions. You read pre/post side-by-side and confirm the plan actually delivers what you pictured. If you handed it a Linear ticket URL, it offers to post the user story as a comment on that ticket.
 
 **Execute the plan:**
 ```

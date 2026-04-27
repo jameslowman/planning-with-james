@@ -1,5 +1,32 @@
 # Release Notes
 
+## v3.5.0
+
+### New: Pre/post user-story narrative as the alignment artifact
+
+Phase 1 user-flow extraction was a Q&A: "walk me through the steps." It produced a numbered list. Numbered lists flatten out the things that actually trip up shared mental models — interruptions, side effects, things the protagonist *doesn't* notice, consequences that surface twenty minutes later when the customer asks where the quote went.
+
+v3.5.0 replaces the up-front user-flow Q&A with a **scene-by-scene narrative** authored with the user. Pattern: identify the cast (protagonist + supporting characters), then write Scene 1 (main path), confirm with the user, then Scene 2 (interruption / variant load / failure recovery), confirm, repeat up to 4 scenes. The narrative is the source of truth for mental-model alignment; the structured `User Flows` section in `problem_description.md` is mechanically derived from it for Phase 4 test-architecture agents to consume.
+
+Phase 9 closes the loop: a **post-implementation half** mirrors each pre scene 1:1 — same protagonist, same starting situation, but showing how the new behavior plays out. Plus a **"What the fix IS / IS NOT"** section sourced from `detailed_plan.md`, `critique_report.md`, `reuse_analysis.md`, and `approach.md`'s out-of-scope items. The user reads pre/post side-by-side and confirms the plan delivers what they pictured before implementation begins.
+
+If a Linear ticket URL was captured during Phase 1, Phase 9 offers to post the user story as a comment on that ticket — best-effort, skips gracefully if the Linear MCP isn't configured.
+
+**New artifact**: `user_story.md` — frontmatter (cast, scene count, ticket URL, post_filled_in flag) plus narrative sections.
+
+**Where it changes**:
+- `plan` Phase 1 — adds Step 3 (cast + scene-by-scene authoring with per-scene confirmation), folds structured flow extraction into Step 4
+- `plan` Phase 9 — adds Step 1 (post-narrative + IS/IS-NOT) and Step 2 (full pre/post checkpoint) before existing finalize steps; Step 3 offers Linear posting
+- `problem_description.md` template — User Flows section flagged as derived-from-`user_story.md`
+- `context_scratch_pad.md` template — adds `user_story.md` to the plan-documents list
+- New `templates/user_story.md`
+
+**Why it works for non-user-facing problems too**: refactors and infra get a generic protagonist ("the developer", "the system", "the calling service"). The cast-and-scenes structure still surfaces sequence, interruption, and side effects, which matter for any work — they're just attached to a system role instead of a named user.
+
+**Why split pre/post across two phases**: the post-narrative + IS/IS-NOT can only be written after Phase 7 (POST needs the approach decided; "It is NOT" needs the deferred items known). Splitting keeps each half close to where its inputs are known.
+
+---
+
 ## v3.4.0
 
 ### New: `/rem` — sleep-cycle maintenance

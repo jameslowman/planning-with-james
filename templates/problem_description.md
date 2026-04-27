@@ -32,24 +32,27 @@ status: draft
 
 ## User Flows
 
-Step-by-step sequences describing exactly how the user interacts with the system.
-For bugs: the steps that trigger the problem. For features: the intended user journey.
+**Source**: derived from `user_story.md` for use by Phase 4 test architecture
+agents. Read `user_story.md` for the narrative form (cast, scenes, side effects);
+this section is the structured re-cut of the same content. The narrative is
+authored scene-by-scene with the user during Phase 1; this section is
+mechanically extracted by the planner — do not re-author flows with the user.
 
-### Flow 1: {{short name}}
+### Flow 1: {{scene 1 title}}
 
 1. {{User does X}}
 2. {{User sees Y}}
 3. {{User does Z}}
-4. **Expected**: {{what should happen}}
-5. **Actual**: {{what happens instead — for bugs}}
+- **Expected**: {{what should happen}}
+- **Actual**: {{what happens instead — for bugs}}
 
-### Flow 2: {{short name}}
+### Flow 2: {{scene 2 title}}
 
 1. ...
 
 ### Alternate Paths / Edge Cases
 
-(Variations on the main flows — different inputs, error conditions, boundary cases)
+(Variations on the main flows — different inputs, error conditions, boundary cases extracted from scenes)
 
 - {{description of alternate path}}
 
